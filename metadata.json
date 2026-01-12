@@ -1,0 +1,7 @@
+{
+  "name": "Wonder Team",
+  "description": "Premium VDI management platform for luxury cosmetics. Features inventory management, POS, client tracking, and AI-powered business coaching.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
