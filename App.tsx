@@ -76,10 +76,16 @@ const App: React.FC = () => {
 
   const handleLogin = async () => {
       setLoading(true);
-      const profile = await DataService.getProfile();
-      setUser(profile);
-      setCurrentView('dashboard');
-      setLoading(false);
+      try {
+        const profile = await DataService.getProfile();
+        setUser(profile);
+        setCurrentView('dashboard');
+      } catch (e) {
+        console.error("Login failed", e);
+        setCurrentView('login');
+      } finally {
+        setLoading(false);
+      }
   };
 
   const handleLogout = () => {
@@ -321,11 +327,11 @@ interface SidebarLinkProps {
 }
 
 const SidebarLink: React.FC<SidebarLinkProps> = ({ active, onClick, icon: Icon, label }) => (
-    <button 
+    <button
         onClick={onClick}
         className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-            active 
-            ? 'bg-rose-50 text-rose-700 font-bold' 
+            active
+            ? 'bg-rose-50 text-rose-700 font-bold'
             : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
         }`}
     >
@@ -334,4 +340,50 @@ const SidebarLink: React.FC<SidebarLinkProps> = ({ active, onClick, icon: Icon, 
     </button>
 );
 
-export default App;
+// --- Error Boundary ---
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('App Error:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen w-full flex flex-col items-center justify-center bg-rose-50 text-slate-700 p-8">
+          <div className="text-5xl mb-4">&#9888;</div>
+          <h1 className="font-serif text-2xl font-bold text-rose-600 mb-2">Une erreur est survenue</h1>
+          <p className="text-slate-500 mb-6 text-center max-w-md">
+            L'application a rencontré un problème. Veuillez rafraîchir la page.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-rose-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-rose-700 transition"
+          >
+            Rafraîchir la page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const AppWithErrorBoundary: React.FC = () => (
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
+
+export default AppWithErrorBoundary;

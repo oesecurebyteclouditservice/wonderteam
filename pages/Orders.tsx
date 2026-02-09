@@ -13,16 +13,21 @@ const Orders: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
         setLoading(true);
-        const [ordersData, clientsData] = await Promise.all([
-            DataService.getOrders(),
-            DataService.getClients()
-        ]);
-        setOrders(ordersData);
-        // Map clients for easy lookup
-        const clientMap: Record<string, Client> = {};
-        clientsData.forEach(c => clientMap[c.id] = c);
-        setClients(clientMap);
-        setLoading(false);
+        try {
+          const [ordersData, clientsData] = await Promise.all([
+              DataService.getOrders(),
+              DataService.getClients()
+          ]);
+          setOrders(ordersData);
+          // Map clients for easy lookup
+          const clientMap: Record<string, Client> = {};
+          clientsData.forEach(c => clientMap[c.id] = c);
+          setClients(clientMap);
+        } catch (e) {
+          console.error('Orders: Failed to load data', e);
+        } finally {
+          setLoading(false);
+        }
     };
     loadData();
   }, []);

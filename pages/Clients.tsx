@@ -21,19 +21,29 @@ const Clients: React.FC = () => {
   }, []);
 
   const loadData = async () => {
-      const c = await DataService.getClients();
-      setClients(c);
-      const p = await DataService.getProducts();
-      setProducts(p);
+      try {
+        const c = await DataService.getClients();
+        setClients(c);
+        const p = await DataService.getProducts();
+        setProducts(p);
+      } catch (e) {
+        console.error('Clients: Failed to load data', e);
+      }
   };
 
   const handleGenerateAi = async (client: Client) => {
       setSelectedClient(client);
       setRecommendation("");
       setAiLoading(true);
-      const text = await GeminiService.generateClientRecommendation(client, products);
-      setRecommendation(text);
-      setAiLoading(false);
+      try {
+        const recs = await GeminiService.generateProductRecommendations(client, products);
+        setRecommendation(recs.join(', '));
+      } catch (e) {
+        console.error('AI recommendation failed', e);
+        setRecommendation("Impossible de générer une recommandation pour le moment.");
+      } finally {
+        setAiLoading(false);
+      }
   };
 
   const startEdit = (client: Client) => {

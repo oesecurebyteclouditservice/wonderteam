@@ -20,9 +20,14 @@ const Stock: React.FC = () => {
 
   const loadProducts = async () => {
     setLoading(true);
-    const data = await DataService.getProducts();
-    setProducts(data);
-    setLoading(false);
+    try {
+      const data = await DataService.getProducts();
+      setProducts(data);
+    } catch (e) {
+      console.error('Stock: Failed to load products', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStockUpdate = async (product: Product, change: number) => {

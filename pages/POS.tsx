@@ -14,13 +14,17 @@ const POS: React.FC = () => {
   const profit = items.reduce((acc, item) => acc + ((item.price_public - item.price_cost) * item.quantity), 0);
 
   const handleCashPayment = async () => {
-    // Create order immediately
-    await createOrder('paid');
-    setOrderSuccess(true);
-    setTimeout(() => {
-        setOrderSuccess(false);
-        clearCart();
-    }, 2000);
+    try {
+      await createOrder('paid');
+      setOrderSuccess(true);
+      setTimeout(() => {
+          setOrderSuccess(false);
+          clearCart();
+      }, 2000);
+    } catch (e) {
+      console.error('POS: Cash payment failed', e);
+      alert("Erreur lors de l'enregistrement de la vente.");
+    }
   };
 
   const handleLinkGeneration = async (type: 'stripe' | 'paypal') => {
@@ -32,12 +36,15 @@ const POS: React.FC = () => {
         link = `https://paypal.me/wonderteam/${total.toFixed(2)}`;
         setPaymentMethodName('PayPal');
     }
-    
+
     setPaymentLink(link);
     setPaymentModalOpen(true);
-    
-    // Create pending order
-    await createOrder('pending');
+
+    try {
+      await createOrder('pending');
+    } catch (e) {
+      console.error('POS: Failed to create pending order', e);
+    }
   };
 
   const createOrder = async (status: 'paid' | 'pending') => {

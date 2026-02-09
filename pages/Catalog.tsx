@@ -20,9 +20,14 @@ const Catalog: React.FC = () => {
 
   const loadProducts = async () => {
     setLoading(true);
-    const data = await DataService.getProducts();
-    setProducts(data);
-    setLoading(false);
+    try {
+      const data = await DataService.getProducts();
+      setProducts(data);
+    } catch (e) {
+      console.error('Catalog: Failed to load products', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddToCart = (product: Product) => {

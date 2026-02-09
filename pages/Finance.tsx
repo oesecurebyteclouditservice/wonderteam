@@ -16,24 +16,29 @@ const Finance: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
         setLoading(true);
-        const [ordersData, clientsData] = await Promise.all([
-             DataService.getOrders(),
-             DataService.getClients()
-        ]);
-        
-        const clientMap: Record<string, Client> = {};
-        clientsData.forEach(c => clientMap[c.id] = c);
-        setClients(clientMap);
+        try {
+          const [ordersData, clientsData] = await Promise.all([
+               DataService.getOrders(),
+               DataService.getClients()
+          ]);
 
-        const revenue = ordersData.reduce((acc, o) => acc + o.total_amount, 0);
-        const profit = ordersData.reduce((acc, o) => acc + o.profit, 0);
-        setStats({
-            revenue,
-            profit,
-            cost: revenue - profit
-        });
-        setOrders(ordersData);
-        setLoading(false);
+          const clientMap: Record<string, Client> = {};
+          clientsData.forEach(c => clientMap[c.id] = c);
+          setClients(clientMap);
+
+          const revenue = ordersData.reduce((acc, o) => acc + o.total_amount, 0);
+          const profit = ordersData.reduce((acc, o) => acc + o.profit, 0);
+          setStats({
+              revenue,
+              profit,
+              cost: revenue - profit
+          });
+          setOrders(ordersData);
+        } catch (e) {
+          console.error('Finance: Failed to load data', e);
+        } finally {
+          setLoading(false);
+        }
     };
     fetchData();
   }, []);

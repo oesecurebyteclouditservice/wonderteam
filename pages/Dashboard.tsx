@@ -20,7 +20,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         const orders = await DataService.getOrders();
         const clients = await DataService.getClients();
         const products = await DataService.getProducts();
-        
+
         // Calculate Metrics
         const revenue = orders.reduce((acc, o) => acc + o.total_amount, 0);
         const profit = orders.reduce((acc, o) => acc + o.profit, 0);
@@ -36,6 +36,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
           lowStock,
           totalStockValue
         });
+      } catch (e) {
+        console.error('Dashboard: Failed to load stats', e);
       } finally {
         setLoading(false);
       }
