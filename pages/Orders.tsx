@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { DataService } from '../services/dataService';
 import { Order, Client } from '../types';
-import { ChevronDown, ChevronUp, CheckCircle, Clock, Truck, Box } from 'lucide-react';
+import { ChevronDown, ChevronUp, CheckCircle, Clock, Truck, Box, Trash2 } from 'lucide-react';
 
 const Orders: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -31,6 +31,13 @@ const Orders: React.FC = () => {
     };
     loadData();
   }, []);
+
+  const refreshOrders = async () => {
+    try {
+      const updated = await DataService.getOrders();
+      setOrders(updated);
+    } catch (err) { console.error(err); }
+  };
 
   const toggleExpand = (id: string) => {
       setExpandedOrderId(expandedOrderId === id ? null : id);
@@ -102,9 +109,24 @@ const Orders: React.FC = () => {
                                     </div>
                                     <p className="text-xs text-slate-400 font-mono">{new Date(order.created_at).toLocaleDateString()} • #{order.id}</p>
                                 </div>
-                                <div className="text-right">
-                                    <p className="font-bold text-rose-600 text-lg">{order.total_amount.toFixed(2)}€</p>
-                                    <p className="text-xs text-amber-500 font-medium">Marge: +{order.profit.toFixed(2)}€</p>
+                                <div className="flex items-start gap-2">
+                                    <div className="text-right">
+                                        <p className="font-bold text-rose-600 text-lg">{order.total_amount.toFixed(2)}€</p>
+                                        <p className="text-xs text-amber-500 font-medium">Marge: +{order.profit.toFixed(2)}€</p>
+                                    </div>
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (!confirm('Supprimer cette commande ?')) return;
+                                        try {
+                                          await DataService.deleteOrder(order.id);
+                                          refreshOrders();
+                                        } catch (err) { console.error(err); }
+                                      }}
+                                      className="text-slate-300 hover:text-red-500 p-1 rounded hover:bg-red-50 transition"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
                                 </div>
                             </div>
                             
@@ -130,14 +152,50 @@ const Orders: React.FC = () => {
                                               <div key={idx} className="flex justify-between items-center text-sm">
                                                   <div className="flex items-center gap-2">
                                                       <span className="bg-white w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-xs font-bold">{item.quantity}x</span>
-                                                      <span className="text-slate-700">{item.name}</span>
+                                                      <span className="text-slate-700">{item.product_name || item.name}</span>
                                                   </div>
-                                                  <span className="font-medium text-slate-600">{(item.price_public * item.quantity).toFixed(2)}€</span>
+                                                  <span className="font-medium text-slate-600">{((item.unit_price || item.price_public || 0) * item.quantity).toFixed(2)}€</span>
                                               </div>
                                           ))
                                       ) : (
                                           <p className="text-sm text-slate-400 italic">Détails des articles non disponibles.</p>
                                       )}
+                                  </div>
+                                  <div className="mt-4 pt-3 border-t border-slate-200 flex flex-wrap gap-4 items-center">
+                                    <div>
+                                      <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Statut</label>
+                                      <select
+                                        defaultValue={order.status}
+                                        onChange={async (e) => {
+                                          try {
+                                            await DataService.updateOrder(order.id, { status: e.target.value as any });
+                                            refreshOrders();
+                                          } catch (err) { console.error(err); }
+                                        }}
+                                        className="text-sm p-2 rounded-lg border border-slate-200 bg-white"
+                                      >
+                                        <option value="pending">En attente</option>
+                                        <option value="paid">Payé</option>
+                                        <option value="shipped">Expédié</option>
+                                        <option value="delivered">Livré</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Paiement</label>
+                                      <select
+                                        defaultValue={order.payment_status}
+                                        onChange={async (e) => {
+                                          try {
+                                            await DataService.updateOrder(order.id, { payment_status: e.target.value as any });
+                                            refreshOrders();
+                                          } catch (err) { console.error(err); }
+                                        }}
+                                        className="text-sm p-2 rounded-lg border border-slate-200 bg-white"
+                                      >
+                                        <option value="pending">En attente</option>
+                                        <option value="paid">Payé</option>
+                                      </select>
+                                    </div>
                                   </div>
                               </div>
                           )}

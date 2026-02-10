@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { DataService } from '../services/dataService';
 import { GeminiService } from '../services/geminiService';
 import { Client, Product } from '../types';
-import { Search, Sparkles, UserPlus, Phone, Mail, Edit2, Save, X, Trash2 } from 'lucide-react';
+import { Search, Sparkles, UserPlus, Phone, Mail, Edit2, Save, X, Trash2, Users } from 'lucide-react';
 
 const Clients: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
@@ -12,7 +12,9 @@ const Clients: React.FC = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+
   // Edit State
   const [editForm, setEditForm] = useState<Partial<Client>>({});
 
@@ -21,15 +23,26 @@ const Clients: React.FC = () => {
   }, []);
 
   const loadData = async () => {
+      setLoading(true);
       try {
-        const c = await DataService.getClients();
+        const [c, p] = await Promise.all([
+          DataService.getClients(),
+          DataService.getProducts()
+        ]);
         setClients(c);
-        const p = await DataService.getProducts();
         setProducts(p);
       } catch (e) {
         console.error('Clients: Failed to load data', e);
+      } finally {
+        setLoading(false);
       }
   };
+
+  const filtered = clients.filter(c =>
+    c.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    c.email?.toLowerCase().includes(search.toLowerCase()) ||
+    c.phone?.includes(search)
+  );
 
   const handleGenerateAi = async (client: Client) => {
       setSelectedClient(client);
@@ -53,25 +66,33 @@ const Clients: React.FC = () => {
 
   const saveEdit = async () => {
       if (editForm.id) {
-          await DataService.updateClient(editForm as Client);
-          setEditingId(null);
-          loadData();
+          try {
+              await DataService.updateClient(editForm as Client);
+              setEditingId(null);
+              loadData();
+          } catch (e) {
+              console.error('Clients: Failed to save edit', e);
+          }
       }
   };
 
   const handleAddClient = async (e: React.FormEvent) => {
       e.preventDefault();
-      const form = e.target as HTMLFormElement;
-      const newClient = {
-          full_name: (form.elements.namedItem('firstName') as HTMLInputElement).value + ' ' + (form.elements.namedItem('lastName') as HTMLInputElement).value,
-          email: (form.elements.namedItem('email') as HTMLInputElement).value,
-          phone: (form.elements.namedItem('phone') as HTMLInputElement).value,
-          status: 'new' as const,
-          notes: ''
-      };
-      await DataService.addClient(newClient);
-      setIsAddModalOpen(false);
-      loadData();
+      try {
+          const form = e.target as HTMLFormElement;
+          const newClient = {
+              full_name: (form.elements.namedItem('firstName') as HTMLInputElement).value + ' ' + (form.elements.namedItem('lastName') as HTMLInputElement).value,
+              email: (form.elements.namedItem('email') as HTMLInputElement).value,
+              phone: (form.elements.namedItem('phone') as HTMLInputElement).value,
+              status: 'new' as const,
+              notes: ''
+          };
+          await DataService.addClient(newClient);
+          setIsAddModalOpen(false);
+          loadData();
+      } catch (e) {
+          console.error('Clients: Failed to add client', e);
+      }
   };
 
   return (
@@ -87,9 +108,37 @@ const Clients: React.FC = () => {
           </button>
       </div>
 
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Rechercher un client..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
+        />
+      </div>
+
       {/* List */}
+      {loading ? (
+        <div className="space-y-4">
+          {[1,2,3].map(i => (
+            <div key={i} className="bg-white p-4 rounded-xl border border-slate-100 animate-pulse">
+              <div className="h-5 bg-slate-200 rounded w-1/3 mb-2"></div>
+              <div className="h-4 bg-slate-100 rounded w-1/2 mb-3"></div>
+              <div className="h-3 bg-slate-100 rounded w-2/3"></div>
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-slate-400">
+          <Users size={40} className="mx-auto mb-2 opacity-50" />
+          <p>{search ? 'Aucun client trouvé.' : 'Aucun client enregistré.'}</p>
+        </div>
+      ) : (
       <div className="space-y-4">
-          {clients.map(client => {
+          {filtered.map(client => {
               const isEditing = editingId === client.id;
               return (
               <div key={client.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
@@ -135,11 +184,29 @@ const Clients: React.FC = () => {
 
                       <div className="ml-2 flex gap-1">
                           {isEditing ? (
-                              <button onClick={saveEdit} className="text-green-600 p-1 hover:bg-green-50 rounded"><Save size={16} /></button>
+                              <>
+                                <button onClick={saveEdit} className="text-green-600 p-1 hover:bg-green-50 rounded"><Save size={16} /></button>
+                                <button onClick={() => setEditingId(null)} className="text-red-400 p-1 hover:bg-red-50 rounded"><X size={16}/></button>
+                              </>
                           ) : (
-                              <button onClick={() => startEdit(client)} className="text-slate-400 p-1 hover:text-rose-600 hover:bg-rose-50 rounded"><Edit2 size={16} /></button>
+                              <>
+                                <button onClick={() => startEdit(client)} className="text-slate-400 p-1 hover:text-rose-600 hover:bg-rose-50 rounded"><Edit2 size={16} /></button>
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm('Supprimer ce client ?')) return;
+                                    try {
+                                      await DataService.deleteClient(client.id);
+                                      loadData();
+                                    } catch (e) {
+                                      console.error('Failed to delete client', e);
+                                    }
+                                  }}
+                                  className="text-slate-400 p-1 hover:text-red-500 hover:bg-red-50 rounded"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </>
                           )}
-                          {isEditing && <button onClick={() => setEditingId(null)} className="text-red-400 p-1 hover:bg-red-50 rounded"><X size={16}/></button>}
                       </div>
                   </div>
                   
@@ -196,6 +263,7 @@ const Clients: React.FC = () => {
               </div>
           )})}
       </div>
+      )}
 
       {/* Add Client Modal */}
       {isAddModalOpen && (

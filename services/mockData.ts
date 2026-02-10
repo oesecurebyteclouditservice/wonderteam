@@ -26,7 +26,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price_cost: 34.50,
     stock_quantity: 5,
     alert_threshold: 2,
-    image_url: 'https://picsum.photos/400/400?random=1'
+    image_url: 'https://picsum.photos/400/400?random=1',
+    is_active: true
   },
   {
     id: 'p2',
@@ -38,7 +39,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price_cost: 42.00,
     stock_quantity: 12,
     alert_threshold: 3,
-    image_url: 'https://picsum.photos/400/400?random=2'
+    image_url: 'https://picsum.photos/400/400?random=2',
+    is_active: true
   },
   {
     id: 'p3',
@@ -50,7 +52,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price_cost: 71.00,
     stock_quantity: 2,
     alert_threshold: 2,
-    image_url: 'https://picsum.photos/400/400?random=3'
+    image_url: 'https://picsum.photos/400/400?random=3',
+    is_active: true
   },
   {
     id: 'p4',
@@ -62,7 +65,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price_cost: 23.50,
     stock_quantity: 8,
     alert_threshold: 2,
-    image_url: 'https://picsum.photos/400/400?random=4'
+    image_url: 'https://picsum.photos/400/400?random=4',
+    is_active: true
   },
   {
     id: 'p5',
@@ -74,7 +78,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price_cost: 65.00,
     stock_quantity: 0,
     alert_threshold: 2,
-    image_url: 'https://picsum.photos/400/400?random=5'
+    image_url: 'https://picsum.photos/400/400?random=5',
+    is_active: true
   },
   {
     id: 'p6',
@@ -86,7 +91,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price_cost: 61.50,
     stock_quantity: 4,
     alert_threshold: 2,
-    image_url: 'https://picsum.photos/400/400?random=6'
+    image_url: 'https://picsum.photos/400/400?random=6',
+    is_active: true
   }
 ];
 
@@ -99,7 +105,14 @@ export const INITIAL_CLIENTS: Client[] = [
     status: 'vip',
     last_purchase_date: '2023-11-15',
     notes: 'Aime les parfums floraux. Anniversaire en Mars.',
-    user_id: 'user_123'
+    user_id: 'user_123',
+    address: '12 Rue de la Paix',
+    city: 'Paris',
+    postal_code: '75002',
+    preferred_contact: 'email',
+    loyalty_points: 150,
+    total_spent: 450.00,
+    is_active: true
   },
   {
     id: 'c2',
@@ -108,8 +121,15 @@ export const INITIAL_CLIENTS: Client[] = [
     phone: '06 98 76 54 32',
     status: 'active',
     last_purchase_date: '2023-10-20',
-    notes: 'Client régulier pour cadeaux.',
-    user_id: 'user_123'
+    notes: 'Client regulier pour cadeaux.',
+    user_id: 'user_123',
+    address: '5 Avenue Victor Hugo',
+    city: 'Lyon',
+    postal_code: '69001',
+    preferred_contact: 'phone',
+    loyalty_points: 80,
+    total_spent: 215.00,
+    is_active: true
   },
   {
     id: 'c3',
@@ -117,8 +137,12 @@ export const INITIAL_CLIENTS: Client[] = [
     email: 'sarah.d@example.com',
     phone: '07 55 44 33 22',
     status: 'new',
-    notes: 'Rencontrée lors de la réunion du 15.',
-    user_id: 'user_123'
+    notes: 'Rencontree lors de la reunion du 15.',
+    user_id: 'user_123',
+    preferred_contact: 'sms',
+    loyalty_points: 0,
+    total_spent: 0,
+    is_active: true
   }
 ];
 
@@ -132,8 +156,8 @@ export const INITIAL_ORDERS: Order[] = [
     payment_status: 'paid',
     created_at: '2023-11-15T10:30:00Z',
     items: [
-        { ...INITIAL_PRODUCTS[1], quantity: 1 },
-        { ...INITIAL_PRODUCTS[3], quantity: 1 }
+        { product_id: 'p2', product_name: 'LA VIE EST BELLE', quantity: 1, unit_price: 85.00, subtotal: 85.00 },
+        { product_id: 'p4', product_name: 'CRYSTAL NOIR', quantity: 1, unit_price: 47.00, subtotal: 47.00 }
     ]
   },
   {
@@ -145,7 +169,32 @@ export const INITIAL_ORDERS: Order[] = [
     payment_status: 'paid',
     created_at: '2023-10-20T14:15:00Z',
     items: [
-        { ...INITIAL_PRODUCTS[1], quantity: 1 }
+        { product_id: 'p2', product_name: 'LA VIE EST BELLE', quantity: 1, unit_price: 85.00, subtotal: 85.00 }
     ]
+  }
+];
+
+export const INITIAL_TRANSACTIONS = [
+  {
+    id: 'tx_1',
+    transaction_type: 'sale',
+    amount: 127.00,
+    description: 'Commande ord_1',
+    category: 'order',
+    payment_method: 'card',
+    order_id: 'ord_1',
+    created_by: 'user_123',
+    created_at: '2023-11-15T10:30:00Z'
+  },
+  {
+    id: 'tx_2',
+    transaction_type: 'sale',
+    amount: 85.00,
+    description: 'Commande ord_2',
+    category: 'order',
+    payment_method: 'card',
+    order_id: 'ord_2',
+    created_by: 'user_123',
+    created_at: '2023-10-20T14:15:00Z'
   }
 ];

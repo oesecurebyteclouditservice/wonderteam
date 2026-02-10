@@ -15,7 +15,6 @@ cd /opt/wonder-team-production
 cat > .env << 'ENVEOF'
 VITE_SUPABASE_URL=https://kkkycawqnapjlhohojjl.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY_HERE
-VITE_GEMINI_API_KEY=AIzaSyBk19KK8eqp8EXoZLtMwuTkP7436yut4YU
 NODE_ENV=production
 ENVEOF
 
@@ -39,10 +38,8 @@ COPY services/ services/
 
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_GEMINI_API_KEY
 ENV VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
 ENV VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
-ENV VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY}
 
 RUN npm run build
 
@@ -109,7 +106,6 @@ services:
       args:
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-        VITE_GEMINI_API_KEY: ${VITE_GEMINI_API_KEY}
     container_name: wonder-team-app
     restart: unless-stopped
     ports:

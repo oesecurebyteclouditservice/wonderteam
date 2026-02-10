@@ -154,11 +154,6 @@ if [ -z "$VITE_SUPABASE_ANON_KEY" ] || [ "$VITE_SUPABASE_ANON_KEY" = "YOUR_ANON_
 fi
 log "VITE_SUPABASE_ANON_KEY configurée: ${VITE_SUPABASE_ANON_KEY:0:20}..."
 
-if [ -z "$VITE_GEMINI_API_KEY" ]; then
-    error "VITE_GEMINI_API_KEY non définie" "Ajoutez: VITE_GEMINI_API_KEY=AIzaSyBk19KK8eqp8EXoZLtMwuTkP7436yut4YU"
-fi
-log "VITE_GEMINI_API_KEY configurée: ${VITE_GEMINI_API_KEY:0:20}..."
-
 # Vérifier fichiers requis
 REQUIRED_FILES=("docker-compose.yml" "Dockerfile" "nginx.conf" "package.json" "App.tsx" "index.html")
 for file in "${REQUIRED_FILES[@]}"; do
@@ -335,11 +330,6 @@ cat << EOF
 ║  ──────────────────────────────────────────────────────   ║
 ║  URL: https://kkkycawqnapjlhohojjl.supabase.co            ║
 ║  Dashboard: https://supabase.com/dashboard/project/kkkycawqnapjlhohojjl ║
-║                                                            ║
-║  🤖 GEMINI AI                                              ║
-║  ──────────────────────────────────────────────────────   ║
-║  Status: ✅ Configuré et actif                            ║
-║  Key: ${VITE_GEMINI_API_KEY:0:30}...                  ║
 ║                                                            ║
 ║  📊 STATUT                                                 ║
 ║  ──────────────────────────────────────────────────────   ║

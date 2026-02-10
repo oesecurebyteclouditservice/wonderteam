@@ -1,11 +1,11 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { 
-  LayoutDashboard, 
-  ShoppingBag, 
-  Users, 
-  User, 
-  LogOut, 
-  Loader2, 
+import {
+  LayoutDashboard,
+  ShoppingBag,
+  Users,
+  User,
+  LogOut,
+  Loader2,
   ShoppingCart,
   Package,
   FileText,
@@ -14,18 +14,28 @@ import {
   X
 } from 'lucide-react';
 import { DataService } from './services/dataService';
+import { supabase } from './services/supabase';
 import { Profile, ViewState, CartItem, Product } from './types';
 
-// Pages
-import Dashboard from './pages/Dashboard';
-import Catalog from './pages/Catalog';
-import Stock from './pages/Stock';
-import Orders from './pages/Orders';
-import Finance from './pages/Finance';
-import POS from './pages/POS';
-import Clients from './pages/Clients';
-import ProfilePage from './pages/ProfilePage';
+// Login is eagerly loaded (first screen seen by unauthenticated users)
 import Login from './pages/Login';
+
+// Lazy-loaded pages (code-split)
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const Catalog = React.lazy(() => import('./pages/Catalog'));
+const Stock = React.lazy(() => import('./pages/Stock'));
+const Orders = React.lazy(() => import('./pages/Orders'));
+const Finance = React.lazy(() => import('./pages/Finance'));
+const POS = React.lazy(() => import('./pages/POS'));
+const Clients = React.lazy(() => import('./pages/Clients'));
+const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
+
+// Loading fallback for Suspense
+const LoadingFallback: React.FC = () => (
+  <div className="flex-1 flex items-center justify-center py-20">
+    <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
+  </div>
+);
 
 // --- Contexts ---
 interface AuthContextType {
@@ -52,12 +62,18 @@ const App: React.FC = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Simulate Auth Check
+  // Auth Check - skip network calls if no session token exists
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Quick check: if no Supabase auth token in storage, go straight to login
+        const hasSession = Object.keys(localStorage).some(k => k.startsWith('sb-'));
+        if (!hasSession && (import.meta as any).env?.VITE_SUPABASE_URL) {
+          setCurrentView('login');
+          setLoading(false);
+          return;
+        }
         const profile = await DataService.getProfile();
-        // Simple Logic: if mock profile returns, we are logged in
         if (profile) {
             setUser(profile);
             setCurrentView('dashboard');
@@ -72,6 +88,31 @@ const App: React.FC = () => {
       }
     };
     checkAuth();
+
+    // Listen for auth state changes (handles OAuth redirect callback)
+    if (supabase) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          if (event === 'SIGNED_IN' && session) {
+            try {
+              const profile = await DataService.getProfile();
+              if (profile) {
+                setUser(profile);
+                setCurrentView('dashboard');
+              }
+            } catch (e) {
+              console.error("Profile fetch after OAuth sign-in failed", e);
+            } finally {
+              setLoading(false);
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+            setCurrentView('login');
+          }
+        }
+      );
+      return () => { subscription.unsubscribe(); };
+    }
   }, []);
 
   const handleLogin = async () => {
@@ -236,6 +277,7 @@ const App: React.FC = () => {
                 )}
 
                 <main className="flex-1 overflow-y-auto pb-24 lg:pb-0">
+                  <React.Suspense fallback={<LoadingFallback />}>
                     {currentView === 'dashboard' && <Dashboard onViewChange={setCurrentView} />}
                     {currentView === 'catalog' && <Catalog />}
                     {currentView === 'stock' && <Stock />}
@@ -244,6 +286,7 @@ const App: React.FC = () => {
                     {currentView === 'pos' && <POS />}
                     {currentView === 'clients' && <Clients />}
                     {currentView === 'profile' && <ProfilePage />}
+                  </React.Suspense>
                 </main>
 
                 {/* --- MOBILE BOTTOM NAV --- */}

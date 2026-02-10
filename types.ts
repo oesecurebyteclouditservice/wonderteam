@@ -11,33 +11,49 @@ export interface Profile {
   avatar_url?: string;
   role: 'admin' | 'vdi';
   team_name?: string;
-  sponsor_id?: string; // Keep for backward compatibility if needed, or deprecate
-  sponsor?: string; // Display name of the sponsor
-  recruits?: Recruit[]; // List of recruits
+  sponsor?: string;
+  recruits?: Recruit[];
+  updated_at?: string;
 }
 
 export interface Product {
   id: string;
-  reference: string;
   name: string;
   brand: string;
   category: string;
+  description?: string;
+  reference?: string;
   price_public: number;
   price_cost: number;
   stock_quantity: number;
-  image_url?: string;
   alert_threshold: number;
+  sku?: string;
+  barcode?: string;
+  image_url?: string;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Client {
   id: string;
+  user_id: string;
   full_name: string;
   email: string;
   phone: string;
+  address?: string;
+  city?: string;
+  postal_code?: string;
   status: 'new' | 'active' | 'vip' | 'inactive' | 'relance';
-  last_purchase_date?: string;
+  birth_date?: string;
   notes?: string;
-  user_id: string;
+  loyalty_points?: number;
+  preferred_contact?: string;
+  last_purchase_date?: string;
+  total_spent?: number;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Order {
@@ -46,10 +62,37 @@ export interface Order {
   total_amount: number;
   profit: number;
   status: 'pending' | 'paid' | 'shipped' | 'delivered';
-  payment_link_id?: string;
   payment_status: 'pending' | 'paid';
+  items: any;
+  notes?: string;
+  created_by?: string;
   created_at: string;
-  items: CartItem[]; // Virtual field for frontend
+  updated_at?: string;
+}
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  created_at?: string;
+}
+
+export interface Transaction {
+  id: string;
+  transaction_type: string;
+  amount: number;
+  description?: string;
+  category?: string;
+  payment_method?: string;
+  reference_id?: string;
+  order_id?: string;
+  transaction_date?: string;
+  created_by?: string;
+  created_at?: string;
 }
 
 export interface CartItem extends Product {
