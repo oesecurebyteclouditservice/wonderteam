@@ -94,7 +94,7 @@ const POS: React.FC = () => {
                 <div className="flex-1">
                     <p className="text-xs text-slate-500 font-bold uppercase">{item.brand}</p>
                     <p className="font-medium text-slate-800">{item.name}</p>
-                    <p className="text-sm text-rose-600 font-semibold">{item.price_public}€ x {item.quantity}</p>
+                    <p className="text-sm text-rose-600 font-semibold">{Number(item.price_public || 0).toFixed(2)}€ x {item.quantity}</p>
                 </div>
                 <button onClick={() => removeFromCart(item.id)} className="text-slate-300 hover:text-red-500 p-2">
                     <Trash2 size={18} />

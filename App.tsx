@@ -73,7 +73,11 @@ const App: React.FC = () => {
           setLoading(false);
           return;
         }
-        const profile = await DataService.getProfile();
+        // Race the profile fetch against a 2s deadline so the UI never hangs
+        const profile = await Promise.race([
+          DataService.getProfile(),
+          new Promise<null>(resolve => setTimeout(() => resolve(null), 2000))
+        ]);
         if (profile) {
             setUser(profile);
             setCurrentView('dashboard');

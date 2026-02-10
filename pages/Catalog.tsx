@@ -105,7 +105,7 @@ const Catalog: React.FC = () => {
                         <div className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             product.stock_quantity <= product.alert_threshold ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-800'
                         }`}>
-                            Stack: {product.stock_quantity}
+                            Stock: {product.stock_quantity}
                         </div>
                     </div>
                     
@@ -117,7 +117,7 @@ const Catalog: React.FC = () => {
                         <h3 className="font-semibold text-slate-800 leading-tight mb-2 line-clamp-2 text-sm">{product.name}</h3>
                         
                         <div className="mt-auto flex items-center justify-between">
-                            <span className="font-bold text-rose-600">{product.price_public}€</span>
+                            <span className="font-bold text-rose-600">{Number(product.price_public || 0).toFixed(2)}€</span>
                             <button 
                                 onClick={() => handleAddToCart(product)}
                                 disabled={product.stock_quantity === 0}

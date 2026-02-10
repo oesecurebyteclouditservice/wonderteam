@@ -98,14 +98,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
             title="Chiffre d'Affaires"
-            value={`${stats.revenue.toFixed(2)}€`}
+            value={`${(stats.revenue ?? 0).toFixed(2)}€`}
             icon={<TrendingUp className="text-rose-600" size={20} />}
             bg="bg-rose-50"
             onClick={() => onViewChange('finance')}
         />
         <StatCard
             title="Benefice Net"
-            value={`${stats.profit.toFixed(2)}€`}
+            value={`${(stats.profit ?? 0).toFixed(2)}€`}
             icon={<ShoppingBag className="text-amber-500" size={20} />}
             bg="bg-amber-50"
             onClick={() => onViewChange('finance')}
@@ -152,7 +152,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
               </div>
               <div className="text-right">
                    <p className="text-xs text-slate-500 mb-1">Valeur totale</p>
-                   <p className="text-xl font-bold text-slate-800">{stats.totalStockValue.toFixed(0)}€</p>
+                   <p className="text-xl font-bold text-slate-800">{(stats.totalStockValue ?? 0).toFixed(0)}€</p>
               </div>
           </div>
       </div>
@@ -206,7 +206,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
                       <div key={order.id} className="p-4 flex justify-between items-center text-sm hover:bg-slate-50 border-t border-slate-50">
                           <span className="font-mono text-slate-500">{new Date(order.created_at).toLocaleDateString()}</span>
                           <span className="font-bold text-slate-800">{client?.full_name || 'Client'}</span>
-                          <span className="font-bold">{order.total_amount.toFixed(2)}€</span>
+                          <span className="font-bold">{(order.total_amount ?? 0).toFixed(2)}€</span>
                           <span className={`px-2 py-1 rounded text-xs font-bold ${
                               order.status === 'delivered' ? 'bg-green-100 text-green-700' :
                               order.status === 'shipped' ? 'bg-blue-100 text-blue-700' :

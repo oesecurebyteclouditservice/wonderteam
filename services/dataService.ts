@@ -21,14 +21,36 @@ let mockProfile = { ...MOCK_PROFILE };
 
 // Auto-detect Supabase availability and fallback to mock mode
 let _supabaseChecked = false;
+let _supabaseCheckPromise: Promise<void> | null = null;
 async function ensureSupabaseOrMock(): Promise<void> {
   if (USE_MOCK || _supabaseChecked) return;
+  // Deduplicate concurrent calls: reuse the same in-flight probe
+  if (_supabaseCheckPromise) return _supabaseCheckPromise;
+  _supabaseCheckPromise = _doSupabaseCheck();
+  return _supabaseCheckPromise;
+}
+
+async function _doSupabaseCheck(): Promise<void> {
+  // Check sessionStorage cache first to avoid re-probing on every page load
+  try {
+    const cached = sessionStorage.getItem('sb_probe');
+    if (cached) {
+      const { ok, ts } = JSON.parse(cached);
+      // Cache valid for 5 minutes
+      if (Date.now() - ts < 300_000) {
+        if (!ok) USE_MOCK = true;
+        _supabaseChecked = true;
+        return;
+      }
+    }
+  } catch { /* ignore storage errors */ }
+
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    // Probe an actual table instead of /rest/v1/ (which always returns 200 for swagger)
+    const timeout = setTimeout(() => controller.abort(), 1500);
+    // Probe with HEAD for speed — smaller response, same reachability test
     const res = await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/products?select=id&limit=0`, {
-      method: 'GET',
+      method: 'HEAD',
       signal: controller.signal,
       headers: {
         'apikey': env.VITE_SUPABASE_ANON_KEY,
@@ -40,11 +62,14 @@ async function ensureSupabaseOrMock(): Promise<void> {
       console.warn(`Supabase table probe failed (status ${res.status}), switching to mock mode`);
       USE_MOCK = true;
     }
+    try { sessionStorage.setItem('sb_probe', JSON.stringify({ ok: res.ok, ts: Date.now() })); } catch {}
   } catch {
     console.warn('Supabase unreachable, switching to mock mode');
     USE_MOCK = true;
+    try { sessionStorage.setItem('sb_probe', JSON.stringify({ ok: false, ts: Date.now() })); } catch {}
   } finally {
     _supabaseChecked = true;
+    _supabaseCheckPromise = null;
   }
 }
 
@@ -90,24 +115,6 @@ export async function checkMockMode(): Promise<boolean> {
 }
 
 export const DataService = {
-
-  async signInWithGoogle() {
-    await ensureSupabaseOrMock();
-    if (USE_MOCK) {
-      alert("Simulation: Connexion Google réussie !");
-      return { data: { user: mockProfile }, error: null };
-    }
-    return await getSupabase().auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      },
-    });
-  },
 
   async signUpWithEmail(email: string, password: string, fullName: string) {
     await ensureSupabaseOrMock();

@@ -145,13 +145,11 @@ const Stock: React.FC = () => {
               editProduct.image_url = newImageUrl;
           }
 
-          // Update local state immediately so UI reflects changes even if re-fetch returns stale data
+          // Update local state immediately — no server reload to avoid race condition
           setProducts(prev => prev.map(p => p.id === editProduct.id ? { ...editProduct } : p));
           setIsEditModalOpen(false);
           setEditProduct(null);
           setEditProductImage(null);
-          // Also refresh from server in background
-          loadProducts();
       } catch (err) {
           alert("Erreur lors de la modification");
       }
@@ -160,11 +158,9 @@ const Stock: React.FC = () => {
   const handleDeleteProduct = async (productId: string) => {
       try {
           await DataService.deleteProduct(productId);
-          // Update local state immediately
+          // Update local state immediately — no server reload to avoid race condition
           setProducts(prev => prev.filter(p => p.id !== productId));
           setDeleteConfirmId(null);
-          // Also refresh from server in background
-          loadProducts();
       } catch (err) {
           alert("Erreur lors de la suppression");
       }
@@ -272,8 +268,8 @@ const Stock: React.FC = () => {
                       <div className="w-full md:col-span-2 flex justify-between md:justify-center items-center">
                           <span className="md:hidden text-slate-400 text-sm">Prix:</span>
                           <div className="text-center">
-                              <span className="font-bold text-slate-800 block">{product.price_public.toFixed(2)}€</span>
-                              <span className="text-xs text-slate-400">Coût: {product.price_cost.toFixed(2)}€</span>
+                              <span className="font-bold text-slate-800 block">{(product.price_public ?? 0).toFixed(2)}€</span>
+                              <span className="text-xs text-slate-400">Coût: {(product.price_cost ?? 0).toFixed(2)}€</span>
                           </div>
                       </div>
 

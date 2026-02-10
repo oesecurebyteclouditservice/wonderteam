@@ -70,7 +70,7 @@ const Finance: React.FC = () => {
                               <div className="col-span-3 text-slate-500">{new Date(order.created_at).toLocaleDateString()}</div>
                               <div className="col-span-3 font-mono text-xs">{order.id}</div>
                               <div className="col-span-4 font-medium text-slate-800">{clients[order.client_id]?.full_name || 'Client de passage'}</div>
-                              <div className="col-span-2 text-right font-bold text-rose-600">{order.total_amount.toFixed(2)}€</div>
+                              <div className="col-span-2 text-right font-bold text-rose-600">{(order.total_amount ?? 0).toFixed(2)}€</div>
                           </div>
                       ))}
                   </div>
@@ -101,9 +101,9 @@ const Finance: React.FC = () => {
                           <div key={order.id} className="grid grid-cols-12 p-4 text-sm items-center hover:bg-slate-50">
                               <div className="col-span-3 text-slate-500">{new Date(order.created_at).toLocaleDateString()}</div>
                               <div className="col-span-3 font-mono text-xs">{order.id}</div>
-                              <div className="col-span-2 text-right font-medium">{order.total_amount.toFixed(2)}€</div>
-                              <div className="col-span-2 text-right text-red-400">-{(order.total_amount - order.profit).toFixed(2)}€</div>
-                              <div className="col-span-2 text-right font-bold text-green-600">+{order.profit.toFixed(2)}€</div>
+                              <div className="col-span-2 text-right font-medium">{(order.total_amount ?? 0).toFixed(2)}€</div>
+                              <div className="col-span-2 text-right text-red-400">-{((order.total_amount ?? 0) - (order.profit ?? 0)).toFixed(2)}€</div>
+                              <div className="col-span-2 text-right font-bold text-green-600">+{(order.profit ?? 0).toFixed(2)}€</div>
                           </div>
                       ))}
                   </div>
@@ -130,7 +130,7 @@ const Finance: React.FC = () => {
                     <p className="text-slate-500 font-bold uppercase tracking-wider text-sm">Bénéfice Net</p>
                 </div>
                 <div className="flex items-end gap-3">
-                    <span className="text-4xl font-bold font-serif text-slate-900">{stats.profit.toFixed(2)}€</span>
+                    <span className="text-4xl font-bold font-serif text-slate-900">{(stats.profit ?? 0).toFixed(2)}€</span>
                 </div>
             </div>
           </div>
@@ -151,7 +151,7 @@ const Finance: React.FC = () => {
                       </div>
                       <p className="text-sm text-slate-500 uppercase font-bold">Chiffre d'Affaires</p>
                   </div>
-                  <p className="text-3xl font-bold text-slate-900">{stats.revenue.toFixed(2)}€</p>
+                  <p className="text-3xl font-bold text-slate-900">{(stats.revenue ?? 0).toFixed(2)}€</p>
                   <p className="text-xs text-slate-400 mt-1">Somme des ventes de marchandises</p>
               </div>
           </div>

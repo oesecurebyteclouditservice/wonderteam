@@ -111,8 +111,8 @@ const Orders: React.FC = () => {
                                 </div>
                                 <div className="flex items-start gap-2">
                                     <div className="text-right">
-                                        <p className="font-bold text-rose-600 text-lg">{order.total_amount.toFixed(2)}€</p>
-                                        <p className="text-xs text-amber-500 font-medium">Marge: +{order.profit.toFixed(2)}€</p>
+                                        <p className="font-bold text-rose-600 text-lg">{(order.total_amount ?? 0).toFixed(2)}€</p>
+                                        <p className="text-xs text-amber-500 font-medium">Marge: +{(order.profit ?? 0).toFixed(2)}€</p>
                                     </div>
                                     <button
                                       onClick={async (e) => {
