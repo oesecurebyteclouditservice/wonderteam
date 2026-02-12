@@ -203,6 +203,69 @@ export const DataService = {
     );
   },
 
+  // Ensure profile exists (create if needed) - used for OAuth flows
+  async ensureProfile(user: any): Promise<Profile | null> {
+    await ensureSupabaseOrMock();
+    if (USE_MOCK) {
+      mockProfile = {
+        ...mockProfile,
+        id: user.id,
+        email: user.email || 'oauth@example.com',
+        full_name: user.user_metadata?.full_name || user.user_metadata?.name || 'Utilisateur OAuth'
+      };
+      return mockProfile;
+    }
+
+    const sb = getSupabase();
+    try {
+      // Try to get existing profile
+      const { data: existingProfile, error: fetchError } = await sb
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (existingProfile) {
+        return existingProfile;
+      }
+
+      // Profile doesn't exist, create it
+      if (fetchError?.code === 'PGRST116') {
+        const newProfile = {
+          id: user.id,
+          email: user.email || '',
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name || 'Utilisateur',
+          role: 'vdi' as const
+        };
+
+        const { data: createdProfile, error: createError } = await sb
+          .from('profiles')
+          .insert(newProfile)
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Failed to create profile:', createError);
+          // Return basic profile even if insert fails
+          return newProfile;
+        }
+
+        return createdProfile;
+      }
+
+      throw fetchError;
+    } catch (e) {
+      console.error('ensureProfile error:', e);
+      // Return minimal profile as fallback
+      return {
+        id: user.id,
+        email: user.email || '',
+        full_name: user.user_metadata?.full_name || 'Utilisateur',
+        role: 'vdi'
+      };
+    }
+  },
+
   async updateProfile(updates: Partial<Profile>): Promise<void> {
       await ensureSupabaseOrMock();
       if (USE_MOCK) {
@@ -267,11 +330,20 @@ export const DataService = {
     await ensureSupabaseOrMock();
     return withMockFallback(
       async () => {
-        const { data, error } = await getSupabase().from('products').select('*').order('name');
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { data, error } = await sb
+          .from('products')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('name');
         if (error) throw error;
         return data;
       },
-      () => mockProducts
+      () => mockProducts,
+      true
     );
   },
 
@@ -284,11 +356,20 @@ export const DataService = {
     };
     return withMockFallback(
       async () => {
-        const { data, error } = await getSupabase().from('products').insert(product).select().single();
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { data, error } = await sb
+          .from('products')
+          .insert({ ...product, user_id: user.id })
+          .select()
+          .single();
         if (error) throw error;
         return data;
       },
-      mockFn
+      mockFn,
+      true
     );
   },
 
@@ -332,6 +413,10 @@ export const DataService = {
     await ensureSupabaseOrMock();
     await withMockFallback(
       async () => {
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
         const updates: any = {};
         if (size === '15ml') {
           updates.stock_15ml = newQuantity;
@@ -342,7 +427,11 @@ export const DataService = {
         } else {
           updates.stock_total = newQuantity;
         }
-        const { error } = await getSupabase().from('products').update(updates).eq('id', productId);
+        const { error } = await sb
+          .from('products')
+          .update(updates)
+          .eq('id', productId)
+          .eq('user_id', user.id);
         if (error) throw error;
       },
       () => {
@@ -363,7 +452,8 @@ export const DataService = {
             mockProducts[idx].stock_30ml +
             mockProducts[idx].stock_70ml;
         }
-      }
+      },
+      true
     );
   },
 
@@ -371,14 +461,23 @@ export const DataService = {
     await ensureSupabaseOrMock();
     await withMockFallback(
       async () => {
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
         const { id, ...updates } = product;
-        const { error } = await getSupabase().from('products').update(updates).eq('id', id);
+        const { error } = await sb
+          .from('products')
+          .update(updates)
+          .eq('id', id)
+          .eq('user_id', user.id);
         if (error) throw error;
       },
       () => {
         const idx = mockProducts.findIndex(p => p.id === product.id);
         if (idx !== -1) mockProducts[idx] = product;
-      }
+      },
+      true
     );
   },
 
@@ -386,7 +485,15 @@ export const DataService = {
     await ensureSupabaseOrMock();
     await withMockFallback(
       async () => {
-        const { error } = await getSupabase().from('products').delete().eq('id', productId);
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { error } = await sb
+          .from('products')
+          .delete()
+          .eq('id', productId)
+          .eq('user_id', user.id);
         if (error) throw error;
       },
       () => {
@@ -404,7 +511,15 @@ export const DataService = {
     await ensureSupabaseOrMock();
     return withMockFallback(
       async () => {
-        const { data, error } = await getSupabase().from('clients').select('*').order('full_name');
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { data, error } = await sb
+          .from('clients')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('full_name');
         if (error) throw error;
         return data;
       },
@@ -437,7 +552,15 @@ export const DataService = {
     await ensureSupabaseOrMock();
     await withMockFallback(
       async () => {
-        const { error } = await getSupabase().from('clients').update(client).eq('id', client.id);
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { error } = await sb
+          .from('clients')
+          .update(client)
+          .eq('id', client.id)
+          .eq('user_id', user.id);
         if (error) throw error;
       },
       () => {
@@ -452,7 +575,15 @@ export const DataService = {
     await ensureSupabaseOrMock();
     await withMockFallback(
       async () => {
-        const { error } = await getSupabase().from('clients').delete().eq('id', clientId);
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { error } = await sb
+          .from('clients')
+          .delete()
+          .eq('id', clientId)
+          .eq('user_id', user.id);
         if (error) throw error;
       },
       () => {
@@ -470,7 +601,15 @@ export const DataService = {
     await ensureSupabaseOrMock();
     return withMockFallback(
       async () => {
-        const { data, error } = await getSupabase().from('orders').select('*').order('created_at', { ascending: false });
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { data, error } = await sb
+          .from('orders')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
         if (error) throw error;
         return data;
       },
@@ -517,7 +656,15 @@ export const DataService = {
     await ensureSupabaseOrMock();
     await withMockFallback(
       async () => {
-        const { error } = await getSupabase().from('orders').update(updates).eq('id', orderId);
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { error } = await sb
+          .from('orders')
+          .update(updates)
+          .eq('id', orderId)
+          .eq('user_id', user.id);
         if (error) throw error;
       },
       () => {
@@ -532,7 +679,15 @@ export const DataService = {
     await ensureSupabaseOrMock();
     await withMockFallback(
       async () => {
-        const { error } = await getSupabase().from('orders').delete().eq('id', orderId);
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { error } = await sb
+          .from('orders')
+          .delete()
+          .eq('id', orderId)
+          .eq('user_id', user.id);
         if (error) throw error;
       },
       () => {
@@ -546,7 +701,25 @@ export const DataService = {
     await ensureSupabaseOrMock();
     return withMockFallback(
       async () => {
-        const { data, error } = await getSupabase().from('order_items').select('*').eq('order_id', orderId).order('created_at');
+        const sb = getSupabase();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        // Verify the order belongs to the user first
+        const { data: order } = await sb
+          .from('orders')
+          .select('id')
+          .eq('id', orderId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (!order) throw new Error('Order not found or access denied');
+
+        const { data, error } = await sb
+          .from('order_items')
+          .select('*')
+          .eq('order_id', orderId)
+          .order('created_at');
         if (error) throw error;
         return data;
       },

@@ -18,6 +18,7 @@ export interface Profile {
 
 export interface Product {
   id: string;
+  user_id?: string; // Link to the user who owns this product
   name: string;
   brand: string;
   category: string;
@@ -69,6 +70,7 @@ export interface Client {
 
 export interface Order {
   id: string;
+  user_id?: string; // Link to the user who owns this order
   client_id: string;
   total_amount: number;
   profit: number;
