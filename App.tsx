@@ -98,21 +98,28 @@ const App: React.FC = () => {
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, session) => {
-          if (event === 'SIGNED_IN' && session) {
+          if (event === 'SIGNED_IN' && session?.user) {
             try {
-              const profile = await DataService.getProfile();
+              setLoading(true);
+              // Ensure profile exists (create if needed for OAuth users)
+              const profile = await DataService.ensureProfile(session.user);
               if (profile) {
                 setUser(profile);
                 setCurrentView('dashboard');
+              } else {
+                console.error("Failed to create/fetch profile for OAuth user");
+                setCurrentView('login');
               }
             } catch (e) {
               console.error("Profile fetch after OAuth sign-in failed", e);
+              setCurrentView('login');
             } finally {
               setLoading(false);
             }
           } else if (event === 'SIGNED_OUT') {
             setUser(null);
             setCurrentView('login');
+            setLoading(false);
           }
         }
       );
@@ -134,9 +141,24 @@ const App: React.FC = () => {
       }
   };
 
-  const handleLogout = () => {
-      setUser(null);
-      setCurrentView('login');
+  const handleLogout = async () => {
+      try {
+        // Properly sign out from Supabase
+        if (supabase) {
+          await supabase.auth.signOut();
+        }
+        // Clear local state
+        setUser(null);
+        setCurrentView('login');
+        setCartItems([]);
+        // Clear any cached auth data
+        sessionStorage.clear();
+      } catch (e) {
+        console.error("Logout error", e);
+        // Force logout even on error
+        setUser(null);
+        setCurrentView('login');
+      }
   };
 
   // Cart Logic
