@@ -22,13 +22,24 @@ export interface Product {
   brand: string;
   category: string;
   description?: string;
-  reference?: string;
-  price_public: number;
-  price_cost: number;
-  stock_quantity: number;
+
+  // Reference codes for different sizes
+  cat_15ml?: string;
+  cat_30ml?: string;
+  cat_70ml?: string;
+
+  // Prices for different sizes
+  price_15ml: number;
+  price_30ml: number;
+  price_70ml: number;
+
+  // Stock quantities
+  stock_total: number;
+  stock_15ml: number;
+  stock_30ml: number;
+  stock_70ml: number;
+
   alert_threshold: number;
-  sku?: string;
-  barcode?: string;
   image_url?: string;
   is_active?: boolean;
   created_at?: string;
@@ -97,6 +108,8 @@ export interface Transaction {
 
 export interface CartItem extends Product {
   quantity: number;
+  selectedSize?: '15ml' | '30ml' | '70ml';
+  selectedPrice?: number; // Price for the selected size
 }
 
 export type ViewState = 'dashboard' | 'catalog' | 'pos' | 'clients' | 'profile' | 'login' | 'stock' | 'orders' | 'finance';

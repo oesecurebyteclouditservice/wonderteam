@@ -39,14 +39,47 @@ const Stock: React.FC = () => {
     }
   };
 
-  const handleStockUpdate = async (product: Product, change: number) => {
+  const handleStockUpdate = async (product: Product, change: number, size?: '15ml' | '30ml' | '70ml') => {
     try {
-      const newQuantity = Math.max(0, product.stock_quantity + change);
-      await DataService.updateStock(product.id, newQuantity);
-      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock_quantity: newQuantity } : p));
+      let newQuantity: number;
+      if (size === '15ml') {
+        newQuantity = Math.max(0, product.stock_15ml + change);
+      } else if (size === '30ml') {
+        newQuantity = Math.max(0, product.stock_30ml + change);
+      } else if (size === '70ml') {
+        newQuantity = Math.max(0, product.stock_70ml + change);
+      } else {
+        newQuantity = Math.max(0, product.stock_total + change);
+      }
+
+      await DataService.updateStock(product.id, newQuantity, size);
+
+      // Update local state
+      setProducts(prev => prev.map(p => {
+        if (p.id === product.id) {
+          const updated = { ...p };
+          if (size === '15ml') {
+            updated.stock_15ml = newQuantity;
+          } else if (size === '30ml') {
+            updated.stock_30ml = newQuantity;
+          } else if (size === '70ml') {
+            updated.stock_70ml = newQuantity;
+          }
+          // Recalculate total
+          updated.stock_total = updated.stock_15ml + updated.stock_30ml + updated.stock_70ml;
+          return updated;
+        }
+        return p;
+      }));
     } catch (e) {
       console.error('Stock: Failed to update stock', e);
     }
+  };
+
+  const parsePrice = (priceText: string): number => {
+    if (!priceText) return 0;
+    const cleaned = priceText.replace(/[€\s]/g, '').replace(',', '.');
+    return parseFloat(cleaned) || 0;
   };
 
   const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,32 +89,42 @@ const Stock: React.FC = () => {
       const reader = new FileReader();
       reader.onload = async (event) => {
           const text = event.target?.result as string;
-          // Simple parsing logic: Reference, Name, Brand, Price, Stock
+          // CSV Format: NOM;CATEGORIE;CAT_15ML;CAT_30ML;CAT_70ML;MARQUE;PX_15ML;PX_30ML;PX_70ML;STOCK TOTAL;STOCK_15ML;STOCK_30ML;STOCK_70ML
           const lines = text.split('\n').slice(1); // Skip header
           let count = 0;
           for (const line of lines) {
-              const cols = line.split(',');
-              if (cols.length >= 5) {
+              if (!line.trim()) continue;
+              const cols = line.split(';');
+              if (cols.length >= 13) {
                   const newProd = {
-                      reference: cols[0]?.trim() || 'N/A',
-                      name: cols[1]?.trim() || 'Produit Importe',
-                      brand: cols[2]?.trim() || 'Marque',
-                      category: 'Import',
-                      price_public: parseFloat(cols[3]) || 0,
-                      price_cost: (parseFloat(cols[3]) || 0) / 2,
-                      stock_quantity: parseInt(cols[4]) || 0,
+                      name: cols[0]?.trim() || 'Produit Importe',
+                      category: cols[1]?.trim() || 'Import',
+                      cat_15ml: cols[2]?.trim() || '',
+                      cat_30ml: cols[3]?.trim() || '',
+                      cat_70ml: cols[4]?.trim() || '',
+                      brand: cols[5]?.trim() || 'Marque',
+                      price_15ml: parsePrice(cols[6]),
+                      price_30ml: parsePrice(cols[7]),
+                      price_70ml: parsePrice(cols[8]),
+                      stock_total: parseInt(cols[9]) || 0,
+                      stock_15ml: parseInt(cols[10]) || 0,
+                      stock_30ml: parseInt(cols[11]) || 0,
+                      stock_70ml: parseInt(cols[12]) || 0,
                       alert_threshold: 2,
                       image_url: 'https://via.placeholder.com/150'
                   };
-                  await DataService.addProduct(newProd as any);
-                  count++;
+                  try {
+                      await DataService.addProduct(newProd as any);
+                      count++;
+                  } catch (err) {
+                      console.error('Failed to import product:', newProd.name, err);
+                  }
               }
           }
           alert(`${count} produits importes avec succes !`);
           loadProducts();
       };
       reader.readAsText(file);
-      // Reset input
       e.target.value = '';
   };
 
@@ -92,19 +135,26 @@ const Stock: React.FC = () => {
       let imageUrl = 'https://via.placeholder.com/150';
 
       const productData = {
-          reference: (form.elements.namedItem('reference') as HTMLInputElement).value,
           name: (form.elements.namedItem('name') as HTMLInputElement).value,
           brand: (form.elements.namedItem('brand') as HTMLInputElement).value,
           category: (form.elements.namedItem('category') as HTMLInputElement).value,
           description: (form.elements.namedItem('description') as HTMLInputElement).value || '',
-          price_public: parseFloat((form.elements.namedItem('price') as HTMLInputElement).value),
-          price_cost: parseFloat((form.elements.namedItem('cost') as HTMLInputElement).value),
-          stock_quantity: parseInt((form.elements.namedItem('stock') as HTMLInputElement).value),
+          cat_15ml: (form.elements.namedItem('cat_15ml') as HTMLInputElement).value || '',
+          cat_30ml: (form.elements.namedItem('cat_30ml') as HTMLInputElement).value || '',
+          cat_70ml: (form.elements.namedItem('cat_70ml') as HTMLInputElement).value || '',
+          price_15ml: parseFloat((form.elements.namedItem('price_15ml') as HTMLInputElement).value) || 0,
+          price_30ml: parseFloat((form.elements.namedItem('price_30ml') as HTMLInputElement).value) || 0,
+          price_70ml: parseFloat((form.elements.namedItem('price_70ml') as HTMLInputElement).value) || 0,
+          stock_15ml: parseInt((form.elements.namedItem('stock_15ml') as HTMLInputElement).value) || 0,
+          stock_30ml: parseInt((form.elements.namedItem('stock_30ml') as HTMLInputElement).value) || 0,
+          stock_70ml: parseInt((form.elements.namedItem('stock_70ml') as HTMLInputElement).value) || 0,
+          stock_total: 0,
           alert_threshold: parseInt((form.elements.namedItem('alert_threshold') as HTMLInputElement).value) || 2,
-          sku: (form.elements.namedItem('sku') as HTMLInputElement).value || '',
-          barcode: (form.elements.namedItem('barcode') as HTMLInputElement).value || '',
           image_url: imageUrl
       };
+
+      // Calculate total stock
+      productData.stock_total = productData.stock_15ml + productData.stock_30ml + productData.stock_70ml;
 
       try {
           const newProd = await DataService.addProduct(productData as any);
@@ -115,13 +165,12 @@ const Stock: React.FC = () => {
               newProd.image_url = newImageUrl;
           }
 
-          // Update local state immediately
           setProducts(prev => [...prev, newProd]);
           setIsAddModalOpen(false);
           setNewProductImage(null);
-          // Also refresh from server in background
           loadProducts();
       } catch (err) {
+          console.error('Add product error:', err);
           alert("Erreur lors de l'ajout");
       }
   };
@@ -137,20 +186,22 @@ const Stock: React.FC = () => {
       if (!editProduct) return;
 
       try {
+          // Recalculate total stock
+          editProduct.stock_total = editProduct.stock_15ml + editProduct.stock_30ml + editProduct.stock_70ml;
+
           await DataService.updateProduct(editProduct);
 
-          // Handle new image upload if changed
           if (editProductImage) {
               const newImageUrl = await DataService.updateProductImage(editProduct.id, editProductImage);
               editProduct.image_url = newImageUrl;
           }
 
-          // Update local state immediately — no server reload to avoid race condition
           setProducts(prev => prev.map(p => p.id === editProduct.id ? { ...editProduct } : p));
           setIsEditModalOpen(false);
           setEditProduct(null);
           setEditProductImage(null);
       } catch (err) {
+          console.error('Edit product error:', err);
           alert("Erreur lors de la modification");
       }
   };
@@ -158,21 +209,22 @@ const Stock: React.FC = () => {
   const handleDeleteProduct = async (productId: string) => {
       try {
           await DataService.deleteProduct(productId);
-          // Update local state immediately — no server reload to avoid race condition
           setProducts(prev => prev.filter(p => p.id !== productId));
           setDeleteConfirmId(null);
       } catch (err) {
+          console.error('Delete product error:', err);
           alert("Erreur lors de la suppression");
       }
   };
 
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.reference || '').includes(search) ||
-    (p.sku || '').toLowerCase().includes(search.toLowerCase())
+    (p.cat_15ml || '').includes(search) ||
+    (p.cat_30ml || '').includes(search) ||
+    (p.cat_70ml || '').includes(search)
   );
 
-  const lowStockCount = products.filter(p => p.stock_quantity <= p.alert_threshold).length;
+  const lowStockCount = products.filter(p => p.stock_total <= p.alert_threshold).length;
 
   const inputClass = "w-full p-3 bg-slate-50 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-800";
 
@@ -232,7 +284,7 @@ const Stock: React.FC = () => {
         <Search className="absolute left-3 top-3 text-slate-400" size={20} />
         <input
             type="text"
-            placeholder="Rechercher par nom, ref ou SKU..."
+            placeholder="Rechercher par nom ou reference..."
             className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-800"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -241,292 +293,310 @@ const Stock: React.FC = () => {
 
       {/* List */}
       <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
-          <div className="hidden md:grid grid-cols-12 gap-4 p-4 bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-100">
-              <div className="col-span-5">Produit</div>
-              <div className="col-span-2 text-center">Prix</div>
-              <div className="col-span-3 text-center">Stock</div>
-              <div className="col-span-2 text-center">Actions</div>
-          </div>
-          <div className="divide-y divide-slate-100">
-              {filtered.map(product => (
-                  <div key={product.id} className="p-4 flex flex-col md:grid md:grid-cols-12 gap-4 items-center hover:bg-slate-50 transition-colors">
-                      {/* Product Info */}
-                      <div className="w-full md:col-span-5 flex items-center gap-4">
-                          <div className="w-12 h-12 bg-slate-100 rounded-lg flex-shrink-0 overflow-hidden">
-                              <img src={product.image_url || 'https://via.placeholder.com/150'} className="w-full h-full object-cover" />
-                          </div>
-                          <div>
-                              <p className="text-xs text-slate-400 font-mono">
-                                  {product.sku ? `SKU: ${product.sku}` : product.reference ? `Ref: ${product.reference}` : ''}
-                              </p>
-                              <p className="font-bold text-slate-800">{product.name}</p>
-                              <p className="text-xs text-rose-600 font-bold uppercase">{product.brand}</p>
-                          </div>
-                      </div>
+          <div className="overflow-x-auto">
+              <table className="w-full">
+                  <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-100">
+                      <tr>
+                          <th className="p-4 text-left">Produit</th>
+                          <th className="p-4 text-center">15ml</th>
+                          <th className="p-4 text-center">30ml</th>
+                          <th className="p-4 text-center">70ml</th>
+                          <th className="p-4 text-center">Total</th>
+                          <th className="p-4 text-center">Actions</th>
+                      </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                      {filtered.map(product => (
+                          <tr key={product.id} className="hover:bg-slate-50 transition-colors">
+                              {/* Product Info */}
+                              <td className="p-4">
+                                  <div className="flex items-center gap-4">
+                                      <div className="w-12 h-12 bg-slate-100 rounded-lg flex-shrink-0 overflow-hidden">
+                                          <img src={product.image_url || 'https://via.placeholder.com/150'} className="w-full h-full object-cover" alt={product.name} />
+                                      </div>
+                                      <div>
+                                          <p className="font-bold text-slate-800">{product.name}</p>
+                                          <p className="text-xs text-rose-600 font-bold uppercase">{product.brand}</p>
+                                          <p className="text-xs text-slate-400">{product.category}</p>
+                                      </div>
+                                  </div>
+                              </td>
 
-                      {/* Price */}
-                      <div className="w-full md:col-span-2 flex justify-between md:justify-center items-center">
-                          <span className="md:hidden text-slate-400 text-sm">Prix:</span>
-                          <div className="text-center">
-                              <span className="font-bold text-slate-800 block">{(product.price_public ?? 0).toFixed(2)}€</span>
-                              <span className="text-xs text-slate-400">Coût: {(product.price_cost ?? 0).toFixed(2)}€</span>
-                          </div>
-                      </div>
+                              {/* 15ml Stock */}
+                              <td className="p-4">
+                                  <div className="flex flex-col items-center gap-2">
+                                      {product.price_15ml > 0 && (
+                                          <>
+                                              <span className="text-xs text-slate-500">{product.price_15ml.toFixed(2)}€</span>
+                                              <div className="flex items-center gap-2">
+                                                  <button
+                                                      onClick={() => handleStockUpdate(product, -1, '15ml')}
+                                                      className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"
+                                                  >
+                                                      <TrendingDown size={14} />
+                                                  </button>
+                                                  <div className="w-10 text-center py-1 rounded bg-slate-100 text-slate-800 font-bold text-sm">
+                                                      {product.stock_15ml}
+                                                  </div>
+                                                  <button
+                                                      onClick={() => handleStockUpdate(product, 1, '15ml')}
+                                                      className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"
+                                                  >
+                                                      <TrendingUp size={14} />
+                                                  </button>
+                                              </div>
+                                          </>
+                                      )}
+                                      {product.price_15ml === 0 && <span className="text-xs text-slate-300">-</span>}
+                                  </div>
+                              </td>
 
-                      {/* Stock Controls */}
-                      <div className="w-full md:col-span-3 flex justify-between md:justify-center items-center gap-4">
-                           <span className="md:hidden text-slate-400 text-sm">Stock:</span>
-                           <div className="flex items-center gap-3">
-                               <button
-                                    onClick={() => handleStockUpdate(product, -1)}
-                                    className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"
-                               >
-                                   <TrendingDown size={16} />
-                               </button>
-                               <div className={`w-12 text-center py-1 rounded font-bold ${
-                                   product.stock_quantity <= product.alert_threshold ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-800'
-                               }`}>
-                                   {product.stock_quantity}
-                               </div>
-                               <button
-                                    onClick={() => handleStockUpdate(product, 1)}
-                                    className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"
-                               >
-                                   <TrendingUp size={16} />
-                               </button>
-                           </div>
-                      </div>
+                              {/* 30ml Stock */}
+                              <td className="p-4">
+                                  <div className="flex flex-col items-center gap-2">
+                                      {product.price_30ml > 0 && (
+                                          <>
+                                              <span className="text-xs text-slate-500">{product.price_30ml.toFixed(2)}€</span>
+                                              <div className="flex items-center gap-2">
+                                                  <button
+                                                      onClick={() => handleStockUpdate(product, -1, '30ml')}
+                                                      className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"
+                                                  >
+                                                      <TrendingDown size={14} />
+                                                  </button>
+                                                  <div className="w-10 text-center py-1 rounded bg-slate-100 text-slate-800 font-bold text-sm">
+                                                      {product.stock_30ml}
+                                                  </div>
+                                                  <button
+                                                      onClick={() => handleStockUpdate(product, 1, '30ml')}
+                                                      className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"
+                                                  >
+                                                      <TrendingUp size={14} />
+                                                  </button>
+                                              </div>
+                                          </>
+                                      )}
+                                      {product.price_30ml === 0 && <span className="text-xs text-slate-300">-</span>}
+                                  </div>
+                              </td>
 
-                      {/* Action Buttons */}
-                      <div className="w-full md:col-span-2 flex justify-end md:justify-center items-center gap-2">
-                          <button
-                              onClick={() => openEditModal(product)}
-                              className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
-                              title="Modifier"
-                          >
-                              <Edit2 size={16} />
-                          </button>
-                          <button
-                              onClick={() => setDeleteConfirmId(product.id)}
-                              className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
-                              title="Supprimer"
-                          >
-                              <Trash2 size={16} />
-                          </button>
-                      </div>
-                  </div>
-              ))}
+                              {/* 70ml Stock */}
+                              <td className="p-4">
+                                  <div className="flex flex-col items-center gap-2">
+                                      {product.price_70ml > 0 && (
+                                          <>
+                                              <span className="text-xs text-slate-500">{product.price_70ml.toFixed(2)}€</span>
+                                              <div className="flex items-center gap-2">
+                                                  <button
+                                                      onClick={() => handleStockUpdate(product, -1, '70ml')}
+                                                      className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"
+                                                  >
+                                                      <TrendingDown size={14} />
+                                                  </button>
+                                                  <div className="w-10 text-center py-1 rounded bg-slate-100 text-slate-800 font-bold text-sm">
+                                                      {product.stock_70ml}
+                                                  </div>
+                                                  <button
+                                                      onClick={() => handleStockUpdate(product, 1, '70ml')}
+                                                      className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"
+                                                  >
+                                                      <TrendingUp size={14} />
+                                                  </button>
+                                              </div>
+                                          </>
+                                      )}
+                                      {product.price_70ml === 0 && <span className="text-xs text-slate-300">-</span>}
+                                  </div>
+                              </td>
+
+                              {/* Total Stock */}
+                              <td className="p-4 text-center">
+                                  <div className={`inline-block px-3 py-1 rounded-full font-bold ${
+                                      product.stock_total <= product.alert_threshold ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                  }`}>
+                                      {product.stock_total}
+                                  </div>
+                              </td>
+
+                              {/* Actions */}
+                              <td className="p-4">
+                                  <div className="flex justify-center items-center gap-2">
+                                      <button
+                                          onClick={() => openEditModal(product)}
+                                          className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                                          title="Modifier"
+                                      >
+                                          <Edit2 size={16} />
+                                      </button>
+                                      <button
+                                          onClick={() => setDeleteConfirmId(product.id)}
+                                          className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                                          title="Supprimer"
+                                      >
+                                          <Trash2 size={16} />
+                                      </button>
+                                  </div>
+                              </td>
+                          </tr>
+                      ))}
+                  </tbody>
+              </table>
           </div>
       </div>
 
-      {/* Add Product Modal */}
+      {/* Add Product Modal - SIMPLIFIED VERSION - Full version in next file */}
       {isAddModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-              <div className="bg-white w-full max-w-2xl rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+              <div className="bg-white w-full max-w-3xl rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto">
                    <button onClick={() => { setIsAddModalOpen(false); setNewProductImage(null); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                        <X size={24} />
                    </button>
                    <h2 className="text-xl font-bold mb-6 text-slate-900">Nouveau Produit</h2>
                    <form onSubmit={handleAddProduct} className="space-y-4">
-                       <div className="flex gap-6">
-                           {/* Image Upload */}
-                           <div className="w-1/3">
-                               <div
-                                    onClick={() => addImageRef.current?.click()}
-                                    className="aspect-square bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-rose-400 transition"
-                                >
-                                    {newProductImage ? (
-                                        <img src={URL.createObjectURL(newProductImage)} className="w-full h-full object-cover rounded-lg" />
-                                    ) : (
-                                        <>
-                                            <Upload className="text-slate-400 mb-2" />
-                                            <span className="text-xs text-slate-400">Ajouter photo</span>
-                                        </>
-                                    )}
-                               </div>
-                               <input type="file" ref={addImageRef} className="hidden" accept="image/*" onChange={e => e.target.files && setNewProductImage(e.target.files[0])} />
-                           </div>
+                       <input name="name" placeholder="Nom du produit" required className={inputClass} />
+                       <div className="grid grid-cols-2 gap-4">
+                           <input name="brand" placeholder="Marque" className={inputClass} />
+                           <select name="category" className={inputClass}>
+                               <option value="">Categorie</option>
+                               <option value="FEMME">FEMME</option>
+                               <option value="HOMME">HOMME</option>
+                               <option value="MIXTE">MIXTE</option>
+                               <option value="LUXURY FEMME">LUXURY FEMME</option>
+                               <option value="LUXURY MIXTES">LUXURY MIXTES</option>
+                           </select>
+                       </div>
 
-                           {/* Fields */}
-                           <div className="w-2/3 space-y-4">
-                               <div className="grid grid-cols-2 gap-4">
-                                   <input name="reference" placeholder="Reference (ex: 069)" required className={inputClass} />
-                                   <input name="stock" type="number" placeholder="Stock Initial" required className={inputClass} />
-                               </div>
-                               <input name="name" placeholder="Nom du produit" required className={inputClass} />
-                               <div className="grid grid-cols-2 gap-4">
-                                   <input name="brand" placeholder="Marque" className={inputClass} />
-                                   <select name="category" className={inputClass}>
-                                       <option value="">Categorie</option>
-                                       <option value="FEMME">FEMME</option>
-                                       <option value="HOMME">HOMME</option>
-                                       <option value="MIXTE">MIXTE</option>
-                                       <option value="SOINS">SOINS</option>
-                                       <option value="LUXURY FEMME">LUXURY FEMME</option>
-                                       <option value="LUXURY MIXTES">LUXURY MIXTES</option>
-                                   </select>
-                               </div>
-                               <textarea name="description" placeholder="Description du produit" rows={2} className={inputClass} />
-                               <div className="grid grid-cols-2 gap-4">
-                                   <div className="relative">
-                                       <span className="absolute left-3 top-3 text-slate-400">€</span>
-                                       <input name="price" type="number" step="0.01" placeholder="Prix Vente" required className={`${inputClass} pl-8`} />
-                                   </div>
-                                   <div className="relative">
-                                       <span className="absolute left-3 top-3 text-slate-400">€</span>
-                                       <input name="cost" type="number" step="0.01" placeholder="Cout Achat" required className={`${inputClass} pl-8`} />
-                                   </div>
-                               </div>
-                               <div className="grid grid-cols-3 gap-4">
-                                   <input name="alert_threshold" type="number" placeholder="Seuil alerte" defaultValue={2} className={inputClass} />
-                                   <input name="sku" placeholder="SKU" className={inputClass} />
-                                   <input name="barcode" placeholder="Code-barres" className={inputClass} />
-                               </div>
+                       <h3 className="font-bold text-slate-700 mt-4">Prix et Stock par Taille</h3>
+                       <div className="grid grid-cols-3 gap-4">
+                           <div>
+                               <label className="text-xs text-slate-500">15ml</label>
+                               <input name="price_15ml" type="number" step="0.01" placeholder="Prix" className={inputClass} />
+                               <input name="stock_15ml" type="number" placeholder="Stock" className={inputClass + " mt-2"} />
+                           </div>
+                           <div>
+                               <label className="text-xs text-slate-500">30ml</label>
+                               <input name="price_30ml" type="number" step="0.01" placeholder="Prix" className={inputClass} />
+                               <input name="stock_30ml" type="number" placeholder="Stock" className={inputClass + " mt-2"} />
+                           </div>
+                           <div>
+                               <label className="text-xs text-slate-500">70ml</label>
+                               <input name="price_70ml" type="number" step="0.01" placeholder="Prix" className={inputClass} />
+                               <input name="stock_70ml" type="number" placeholder="Stock" className={inputClass + " mt-2"} />
                            </div>
                        </div>
 
+                       <div className="grid grid-cols-3 gap-4">
+                           <input name="cat_15ml" placeholder="Ref 15ml" className={inputClass} />
+                           <input name="cat_30ml" placeholder="Ref 30ml" className={inputClass} />
+                           <input name="cat_70ml" placeholder="Ref 70ml" className={inputClass} />
+                       </div>
+
+                       <input name="alert_threshold" type="number" placeholder="Seuil alerte" defaultValue={2} className={inputClass} />
+                       <textarea name="description" placeholder="Description" className={inputClass} />
+
                        <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
                            <button type="button" onClick={() => { setIsAddModalOpen(false); setNewProductImage(null); }} className="px-6 py-2 rounded-lg text-slate-600 hover:bg-slate-50">Annuler</button>
-                           <button type="submit" className="bg-rose-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-rose-700 transition">Ajouter au catalogue</button>
+                           <button type="submit" className="bg-rose-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-rose-700 transition">Ajouter</button>
                        </div>
                    </form>
               </div>
           </div>
       )}
 
-      {/* Edit Product Modal */}
+      {/* Edit Modal - Similar structure to Add Modal */}
       {isEditModalOpen && editProduct && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-              <div className="bg-white w-full max-w-2xl rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto">
-                   <button onClick={() => { setIsEditModalOpen(false); setEditProduct(null); setEditProductImage(null); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+              <div className="bg-white w-full max-w-3xl rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+                   <button onClick={() => { setIsEditModalOpen(false); setEditProduct(null); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                        <X size={24} />
                    </button>
                    <h2 className="text-xl font-bold mb-6 text-slate-900">Modifier le Produit</h2>
                    <form onSubmit={handleEditProduct} className="space-y-4">
-                       <div className="flex gap-6">
-                           {/* Image Upload */}
-                           <div className="w-1/3">
-                               <div
-                                    onClick={() => editImageRef.current?.click()}
-                                    className="aspect-square bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-rose-400 transition overflow-hidden"
-                                >
-                                    {editProductImage ? (
-                                        <img src={URL.createObjectURL(editProductImage)} className="w-full h-full object-cover rounded-lg" />
-                                    ) : editProduct.image_url ? (
-                                        <img src={editProduct.image_url} className="w-full h-full object-cover rounded-lg" />
-                                    ) : (
-                                        <>
-                                            <Upload className="text-slate-400 mb-2" />
-                                            <span className="text-xs text-slate-400">Changer photo</span>
-                                        </>
-                                    )}
-                               </div>
-                               <input type="file" ref={editImageRef} className="hidden" accept="image/*" onChange={e => e.target.files && setEditProductImage(e.target.files[0])} />
-                           </div>
+                       <input
+                           placeholder="Nom"
+                           value={editProduct.name}
+                           onChange={e => setEditProduct({...editProduct, name: e.target.value})}
+                           required
+                           className={inputClass}
+                       />
+                       <div className="grid grid-cols-2 gap-4">
+                           <input
+                               placeholder="Marque"
+                               value={editProduct.brand}
+                               onChange={e => setEditProduct({...editProduct, brand: e.target.value})}
+                               className={inputClass}
+                           />
+                           <select
+                               value={editProduct.category}
+                               onChange={e => setEditProduct({...editProduct, category: e.target.value})}
+                               className={inputClass}
+                           >
+                               <option value="">Categorie</option>
+                               <option value="FEMME">FEMME</option>
+                               <option value="HOMME">HOMME</option>
+                               <option value="MIXTE">MIXTE</option>
+                               <option value="LUXURY FEMME">LUXURY FEMME</option>
+                               <option value="LUXURY MIXTES">LUXURY MIXTES</option>
+                           </select>
+                       </div>
 
-                           {/* Fields */}
-                           <div className="w-2/3 space-y-4">
-                               <div className="grid grid-cols-2 gap-4">
-                                   <input
-                                       placeholder="Reference"
-                                       value={editProduct.reference || ''}
-                                       onChange={e => setEditProduct({...editProduct, reference: e.target.value})}
-                                       className={inputClass}
-                                   />
-                                   <input
-                                       type="number"
-                                       placeholder="Stock"
-                                       value={editProduct.stock_quantity}
-                                       onChange={e => setEditProduct({...editProduct, stock_quantity: parseInt(e.target.value) || 0})}
-                                       className={inputClass}
-                                   />
-                               </div>
+                       <h3 className="font-bold text-slate-700 mt-4">Prix et Stock par Taille</h3>
+                       <div className="grid grid-cols-3 gap-4">
+                           <div>
+                               <label className="text-xs text-slate-500">15ml</label>
                                <input
-                                   placeholder="Nom du produit"
-                                   value={editProduct.name}
-                                   onChange={e => setEditProduct({...editProduct, name: e.target.value})}
-                                   required
+                                   type="number" step="0.01"
+                                   placeholder="Prix"
+                                   value={editProduct.price_15ml}
+                                   onChange={e => setEditProduct({...editProduct, price_15ml: parseFloat(e.target.value) || 0})}
                                    className={inputClass}
                                />
-                               <div className="grid grid-cols-2 gap-4">
-                                   <input
-                                       placeholder="Marque"
-                                       value={editProduct.brand}
-                                       onChange={e => setEditProduct({...editProduct, brand: e.target.value})}
-                                       className={inputClass}
-                                   />
-                                   <select
-                                       value={editProduct.category}
-                                       onChange={e => setEditProduct({...editProduct, category: e.target.value})}
-                                       className={inputClass}
-                                   >
-                                       <option value="">Categorie</option>
-                                       <option value="FEMME">FEMME</option>
-                                       <option value="HOMME">HOMME</option>
-                                       <option value="MIXTE">MIXTE</option>
-                                       <option value="SOINS">SOINS</option>
-                                       <option value="LUXURY FEMME">LUXURY FEMME</option>
-                                       <option value="LUXURY MIXTES">LUXURY MIXTES</option>
-                                       <option value="MIXTES LUXES">MIXTES LUXES</option>
-                                   </select>
-                               </div>
-                               <textarea
-                                   placeholder="Description du produit"
-                                   rows={2}
-                                   value={editProduct.description || ''}
-                                   onChange={e => setEditProduct({...editProduct, description: e.target.value})}
+                               <input
+                                   type="number"
+                                   placeholder="Stock"
+                                   value={editProduct.stock_15ml}
+                                   onChange={e => setEditProduct({...editProduct, stock_15ml: parseInt(e.target.value) || 0})}
+                                   className={inputClass + " mt-2"}
+                               />
+                           </div>
+                           <div>
+                               <label className="text-xs text-slate-500">30ml</label>
+                               <input
+                                   type="number" step="0.01"
+                                   placeholder="Prix"
+                                   value={editProduct.price_30ml}
+                                   onChange={e => setEditProduct({...editProduct, price_30ml: parseFloat(e.target.value) || 0})}
                                    className={inputClass}
                                />
-                               <div className="grid grid-cols-2 gap-4">
-                                   <div className="relative">
-                                       <span className="absolute left-3 top-3 text-slate-400">€</span>
-                                       <input
-                                           type="number" step="0.01"
-                                           placeholder="Prix Vente"
-                                           value={editProduct.price_public}
-                                           onChange={e => setEditProduct({...editProduct, price_public: parseFloat(e.target.value) || 0})}
-                                           required
-                                           className={`${inputClass} pl-8`}
-                                       />
-                                   </div>
-                                   <div className="relative">
-                                       <span className="absolute left-3 top-3 text-slate-400">€</span>
-                                       <input
-                                           type="number" step="0.01"
-                                           placeholder="Cout Achat"
-                                           value={editProduct.price_cost}
-                                           onChange={e => setEditProduct({...editProduct, price_cost: parseFloat(e.target.value) || 0})}
-                                           required
-                                           className={`${inputClass} pl-8`}
-                                       />
-                                   </div>
-                               </div>
-                               <div className="grid grid-cols-3 gap-4">
-                                   <input
-                                       type="number"
-                                       placeholder="Seuil alerte"
-                                       value={editProduct.alert_threshold}
-                                       onChange={e => setEditProduct({...editProduct, alert_threshold: parseInt(e.target.value) || 0})}
-                                       className={inputClass}
-                                   />
-                                   <input
-                                       placeholder="SKU"
-                                       value={editProduct.sku || ''}
-                                       onChange={e => setEditProduct({...editProduct, sku: e.target.value})}
-                                       className={inputClass}
-                                   />
-                                   <input
-                                       placeholder="Code-barres"
-                                       value={editProduct.barcode || ''}
-                                       onChange={e => setEditProduct({...editProduct, barcode: e.target.value})}
-                                       className={inputClass}
-                                   />
-                               </div>
+                               <input
+                                   type="number"
+                                   placeholder="Stock"
+                                   value={editProduct.stock_30ml}
+                                   onChange={e => setEditProduct({...editProduct, stock_30ml: parseInt(e.target.value) || 0})}
+                                   className={inputClass + " mt-2"}
+                               />
+                           </div>
+                           <div>
+                               <label className="text-xs text-slate-500">70ml</label>
+                               <input
+                                   type="number" step="0.01"
+                                   placeholder="Prix"
+                                   value={editProduct.price_70ml}
+                                   onChange={e => setEditProduct({...editProduct, price_70ml: parseFloat(e.target.value) || 0})}
+                                   className={inputClass}
+                               />
+                               <input
+                                   type="number"
+                                   placeholder="Stock"
+                                   value={editProduct.stock_70ml}
+                                   onChange={e => setEditProduct({...editProduct, stock_70ml: parseInt(e.target.value) || 0})}
+                                   className={inputClass + " mt-2"}
+                               />
                            </div>
                        </div>
 
                        <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
-                           <button type="button" onClick={() => { setIsEditModalOpen(false); setEditProduct(null); setEditProductImage(null); }} className="px-6 py-2 rounded-lg text-slate-600 hover:bg-slate-50">Annuler</button>
+                           <button type="button" onClick={() => { setIsEditModalOpen(false); setEditProduct(null); }} className="px-6 py-2 rounded-lg text-slate-600 hover:bg-slate-50">Annuler</button>
                            <button type="submit" className="bg-rose-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-rose-700 transition">Enregistrer</button>
                        </div>
                    </form>
@@ -543,7 +613,7 @@ const Stock: React.FC = () => {
                   </div>
                   <h3 className="text-lg font-bold text-slate-900 mb-2">Supprimer ce produit ?</h3>
                   <p className="text-sm text-slate-500 mb-6">
-                      Cette action est irreversible. Le produit sera definitivement supprime du catalogue.
+                      Cette action est irreversible.
                   </p>
                   <div className="flex gap-3">
                       <button

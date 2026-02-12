@@ -165,6 +165,21 @@ export const DataService = {
       return await getSupabase().auth.signInWithPassword({ email, password });
   },
 
+  async signInWithGoogle() {
+      await ensureSupabaseOrMock();
+      if (USE_MOCK) {
+          mockProfile = { ...mockProfile, email: 'google@example.com', full_name: 'Google User' };
+          await new Promise(resolve => setTimeout(resolve, 800));
+          return { data: { user: mockProfile }, error: null };
+      }
+      return await getSupabase().auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+              redirectTo: `${window.location.origin}/`,
+          }
+      });
+  },
+
   async getProfile(): Promise<Profile | null> {
     await ensureSupabaseOrMock();
     return withMockFallback(
@@ -313,16 +328,41 @@ export const DataService = {
     return publicUrl;
   },
 
-  async updateStock(productId: string, newQuantity: number): Promise<void> {
+  async updateStock(productId: string, newQuantity: number, size?: '15ml' | '30ml' | '70ml'): Promise<void> {
     await ensureSupabaseOrMock();
     await withMockFallback(
       async () => {
-        const { error } = await getSupabase().from('products').update({ stock_quantity: newQuantity }).eq('id', productId);
+        const updates: any = {};
+        if (size === '15ml') {
+          updates.stock_15ml = newQuantity;
+        } else if (size === '30ml') {
+          updates.stock_30ml = newQuantity;
+        } else if (size === '70ml') {
+          updates.stock_70ml = newQuantity;
+        } else {
+          updates.stock_total = newQuantity;
+        }
+        const { error } = await getSupabase().from('products').update(updates).eq('id', productId);
         if (error) throw error;
       },
       () => {
         const idx = mockProducts.findIndex(p => p.id === productId);
-        if (idx !== -1) mockProducts[idx].stock_quantity = newQuantity;
+        if (idx !== -1) {
+          if (size === '15ml') {
+            mockProducts[idx].stock_15ml = newQuantity;
+          } else if (size === '30ml') {
+            mockProducts[idx].stock_30ml = newQuantity;
+          } else if (size === '70ml') {
+            mockProducts[idx].stock_70ml = newQuantity;
+          } else {
+            mockProducts[idx].stock_total = newQuantity;
+          }
+          // Recalculate total
+          mockProducts[idx].stock_total =
+            mockProducts[idx].stock_15ml +
+            mockProducts[idx].stock_30ml +
+            mockProducts[idx].stock_70ml;
+        }
       }
     );
   },

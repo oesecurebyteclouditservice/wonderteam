@@ -16,6 +16,7 @@ import {
 import { DataService } from './services/dataService';
 import { supabase } from './services/supabase';
 import { Profile, ViewState, CartItem, Product } from './types';
+import { getItemPrice } from './services/productHelpers';
 
 // Login is eagerly loaded (first screen seen by unauthenticated users)
 import Login from './pages/Login';
@@ -155,7 +156,7 @@ const App: React.FC = () => {
 
   const clearCart = () => setCartItems([]);
 
-  const cartTotal = cartItems.reduce((acc, item) => acc + (item.price_public * item.quantity), 0);
+  const cartTotal = cartItems.reduce((acc, item) => acc + (getItemPrice(item) * item.quantity), 0);
 
   if (loading) {
     return (

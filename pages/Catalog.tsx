@@ -3,6 +3,7 @@ import { DataService } from '../services/dataService';
 import { Product } from '../types';
 import { CartContext } from '../App';
 import { Plus, Search, Upload, Check, AlertCircle } from 'lucide-react';
+import { getProductReference, getProductPriceRange, getProductStock, isLowStock } from '../services/productHelpers';
 
 const Catalog: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -47,9 +48,9 @@ const Catalog: React.FC = () => {
       }
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) || 
-    (p.reference || '').includes(search)
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    getProductReference(p).includes(search)
   );
 
   return (
@@ -103,29 +104,29 @@ const Catalog: React.FC = () => {
                         </div>
                         {/* Stock Badge */}
                         <div className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            product.stock_quantity <= product.alert_threshold ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-800'
+                            isLowStock(product) ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-800'
                         }`}>
-                            Stock: {product.stock_quantity}
+                            Stock: {getProductStock(product)}
                         </div>
                     </div>
                     
                     <div className="p-3 flex-1 flex flex-col">
                         <div className="flex justify-between items-start mb-1">
-                            <span className="text-[10px] text-slate-400 font-mono">#{product.reference}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">#{getProductReference(product)}</span>
                             <span className="text-[10px] text-amber-500 font-bold tracking-wider">{product.brand}</span>
                         </div>
                         <h3 className="font-semibold text-slate-800 leading-tight mb-2 line-clamp-2 text-sm">{product.name}</h3>
-                        
+
                         <div className="mt-auto flex items-center justify-between">
-                            <span className="font-bold text-rose-600">{Number(product.price_public || 0).toFixed(2)}€</span>
-                            <button 
+                            <span className="font-bold text-rose-600">{getProductPriceRange(product)}</span>
+                            <button
                                 onClick={() => handleAddToCart(product)}
-                                disabled={product.stock_quantity === 0}
+                                disabled={getProductStock(product) === 0}
                                 className={`p-2 rounded-lg transition-colors ${
-                                    addedId === product.id 
-                                    ? 'bg-green-500 text-white' 
-                                    : product.stock_quantity === 0 
-                                        ? 'bg-slate-100 text-slate-300' 
+                                    addedId === product.id
+                                    ? 'bg-green-500 text-white'
+                                    : getProductStock(product) === 0
+                                        ? 'bg-slate-100 text-slate-300'
                                         : 'bg-rose-50 text-rose-600 hover:bg-rose-100'
                                 }`}
                             >

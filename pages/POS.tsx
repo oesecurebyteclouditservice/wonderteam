@@ -3,6 +3,7 @@ import { CartContext } from '../App';
 import { DataService } from '../services/dataService';
 import { Trash2, CreditCard, Banknote, CheckCircle2, Copy, X, Wallet } from 'lucide-react';
 import { Order } from '../types';
+import { getItemPrice, getItemCost } from '../services/productHelpers';
 
 const POS: React.FC = () => {
   const { items, removeFromCart, total, clearCart } = useContext(CartContext);
@@ -11,7 +12,7 @@ const POS: React.FC = () => {
   const [paymentMethodName, setPaymentMethodName] = useState<string>('');
   const [orderSuccess, setOrderSuccess] = useState(false);
 
-  const profit = items.reduce((acc, item) => acc + ((item.price_public - item.price_cost) * item.quantity), 0);
+  const profit = items.reduce((acc, item) => acc + ((getItemPrice(item) - getItemCost(item)) * item.quantity), 0);
 
   const handleCashPayment = async () => {
     try {
@@ -94,7 +95,7 @@ const POS: React.FC = () => {
                 <div className="flex-1">
                     <p className="text-xs text-slate-500 font-bold uppercase">{item.brand}</p>
                     <p className="font-medium text-slate-800">{item.name}</p>
-                    <p className="text-sm text-rose-600 font-semibold">{Number(item.price_public || 0).toFixed(2)}€ x {item.quantity}</p>
+                    <p className="text-sm text-rose-600 font-semibold">{getItemPrice(item).toFixed(2)}€ x {item.quantity}</p>
                 </div>
                 <button onClick={() => removeFromCart(item.id)} className="text-slate-300 hover:text-red-500 p-2">
                     <Trash2 size={18} />
