@@ -8,6 +8,7 @@ COPY tsconfig.json vite.config.ts tailwind.config.js postcss.config.js ./
 COPY index.html index.tsx index.css App.tsx types.ts ./
 COPY pages/ pages/
 COPY services/ services/
+COPY components/ components/
 
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
