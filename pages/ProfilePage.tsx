@@ -3,6 +3,8 @@ import { AuthContext } from '../App';
 import { DataService } from '../services/dataService';
 import { Camera, LogOut, Award, Users, Save, Trash2, Plus } from 'lucide-react';
 import { Profile, Recruit } from '../types';
+import AuthDebugPanel from '../components/AuthDebugPanel';
+import DataSyncPanel from '../components/DataSyncPanel';
 
 const ProfilePage: React.FC = () => {
   const { user, logout } = useContext(AuthContext);
@@ -233,7 +235,17 @@ const ProfilePage: React.FC = () => {
           </button>
       </div>
 
-      <button 
+      {/* Auth Debug Panel */}
+      <div className="mb-6">
+        <AuthDebugPanel />
+      </div>
+
+      {/* Data Sync Validation Panel */}
+      <div className="mb-6">
+        <DataSyncPanel />
+      </div>
+
+      <button
         onClick={logout}
         className="w-full bg-red-50 text-red-500 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-100 transition"
       >

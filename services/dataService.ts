@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { MOCK_PROFILE, INITIAL_PRODUCTS, INITIAL_CLIENTS, INITIAL_ORDERS, INITIAL_TRANSACTIONS } from './mockData';
 import { Product, Client, Order, OrderItem, Transaction, Profile } from '../types';
+import { authLogger, logAuthEvent, logAuthError, logAuthDebug } from './authLogger';
 
 // Safely access env variables
 const env = (import.meta as any).env || {};
@@ -117,8 +118,11 @@ export async function checkMockMode(): Promise<boolean> {
 export const DataService = {
 
   async signUpWithEmail(email: string, password: string, fullName: string) {
+    authLogger.logLoginFlow('START: Email Sign-Up', { email, fullName });
+
     await ensureSupabaseOrMock();
     if (USE_MOCK) {
+        logAuthDebug('Using MOCK mode for sign-up', { email }, 'DataService.signUpWithEmail');
         // Create a new mock profile for the session
         mockProfile = {
             ...MOCK_PROFILE,
@@ -127,10 +131,13 @@ export const DataService = {
             id: `user_${Date.now()}`
         };
         await new Promise(resolve => setTimeout(resolve, 800));
+        authLogger.logLoginFlow('COMPLETE: Mock Sign-Up Success', { userId: mockProfile.id, email });
         return { data: { user: mockProfile }, error: null };
     }
 
     const sb = getSupabase();
+
+    logAuthDebug('Calling Supabase auth.signUp', { email, fullName }, 'DataService.signUpWithEmail');
     const { data, error } = await sb.auth.signUp({
         email,
         password,
@@ -141,84 +148,159 @@ export const DataService = {
         }
     });
 
+    if (error) {
+        logAuthError('Sign-Up Failed', error, 'DataService.signUpWithEmail');
+        authLogger.logLoginFlow('ERROR: Sign-Up Failed', { error: error.message });
+        return { data, error };
+    }
+
+    logAuthEvent('Sign-Up Success', { userId: data.user?.id, email }, 'DataService.signUpWithEmail');
+
     // Automatically create profile entry if signup successful (handled by trigger usually, but good for safety)
     if (data.user && !error) {
-        await sb.from('profiles').insert({
+        logAuthDebug('Creating profile entry in DB', { userId: data.user.id }, 'DataService.signUpWithEmail');
+        const { error: profileError } = await sb.from('profiles').insert({
             id: data.user.id,
             email: email,
             full_name: fullName,
             role: 'vdi'
         });
+
+        if (profileError) {
+            logAuthError('Profile creation failed', profileError, 'DataService.signUpWithEmail');
+        } else {
+            logAuthEvent('Profile created successfully', { userId: data.user.id }, 'DataService.signUpWithEmail');
+        }
     }
 
+    authLogger.logLoginFlow('COMPLETE: Email Sign-Up', { userId: data.user?.id, email });
     return { data, error };
   },
 
   async signInWithEmail(email: string, password: string) {
+      authLogger.logLoginFlow('START: Email Sign-In', { email });
+
       await ensureSupabaseOrMock();
       if (USE_MOCK) {
+          logAuthDebug('Using MOCK mode for sign-in', { email }, 'DataService.signInWithEmail');
           // Allow any login in mock mode, just update email in profile
           mockProfile = { ...mockProfile, email };
           await new Promise(resolve => setTimeout(resolve, 800));
+          authLogger.logLoginFlow('COMPLETE: Mock Sign-In Success', { userId: mockProfile.id, email });
           return { data: { user: mockProfile }, error: null };
       }
-      return await getSupabase().auth.signInWithPassword({ email, password });
+
+      logAuthDebug('Calling Supabase auth.signInWithPassword', { email }, 'DataService.signInWithEmail');
+      const result = await getSupabase().auth.signInWithPassword({ email, password });
+
+      if (result.error) {
+          logAuthError('Sign-In Failed', result.error, 'DataService.signInWithEmail');
+          authLogger.logLoginFlow('ERROR: Sign-In Failed', { email, error: result.error.message });
+      } else {
+          logAuthEvent('Sign-In Success', { userId: result.data.user?.id, email }, 'DataService.signInWithEmail');
+          authLogger.logLoginFlow('COMPLETE: Email Sign-In', { userId: result.data.user?.id, email });
+      }
+
+      return result;
   },
 
   async signInWithGoogle() {
+      authLogger.logLoginFlow('START: Google OAuth Sign-In', {});
+
       await ensureSupabaseOrMock();
       if (USE_MOCK) {
+          logAuthDebug('Using MOCK mode for Google sign-in', {}, 'DataService.signInWithGoogle');
           mockProfile = { ...mockProfile, email: 'google@example.com', full_name: 'Google User' };
           await new Promise(resolve => setTimeout(resolve, 800));
+          authLogger.logLoginFlow('COMPLETE: Mock Google Sign-In', { userId: mockProfile.id });
           return { data: { user: mockProfile }, error: null };
       }
-      return await getSupabase().auth.signInWithOAuth({
+
+      const redirectUrl = `${window.location.origin}/`;
+      logAuthDebug('Initiating Google OAuth', { redirectTo: redirectUrl }, 'DataService.signInWithGoogle');
+
+      const result = await getSupabase().auth.signInWithOAuth({
           provider: 'google',
           options: {
-              redirectTo: `${window.location.origin}/`,
+              redirectTo: redirectUrl,
           }
       });
+
+      if (result.error) {
+          logAuthError('Google OAuth initiation failed', result.error, 'DataService.signInWithGoogle');
+          authLogger.logLoginFlow('ERROR: Google OAuth Failed', { error: result.error.message });
+      } else {
+          logAuthEvent('Google OAuth redirect initiated', { redirectTo: redirectUrl }, 'DataService.signInWithGoogle');
+          authLogger.logLoginFlow('REDIRECT: Google OAuth initiated', { redirectTo: redirectUrl });
+      }
+
+      return result;
   },
 
   async getProfile(): Promise<Profile | null> {
+    logAuthDebug('Fetching user profile', {}, 'DataService.getProfile');
+
     await ensureSupabaseOrMock();
-    return withMockFallback(
+    const result = await withMockFallback(
       async () => {
         const sb = getSupabase();
+        logAuthDebug('Calling Supabase auth.getUser', {}, 'DataService.getProfile');
         const { data: { user } } = await sb.auth.getUser();
-        if (!user) return null;
 
+        if (!user) {
+          logAuthDebug('No authenticated user found', {}, 'DataService.getProfile');
+          return null;
+        }
+
+        logAuthDebug('User found, fetching profile from DB', { userId: user.id }, 'DataService.getProfile');
         const { data, error } = await sb.from('profiles').select('*').eq('id', user.id).single();
-        if (error && error.code !== 'PGRST116') throw error;
 
-        return data || {
+        if (error && error.code !== 'PGRST116') {
+          logAuthError('Profile fetch error', error, 'DataService.getProfile');
+          throw error;
+        }
+
+        const profile = data || {
           id: user.id,
           email: user.email || '',
           full_name: user.user_metadata.full_name || 'Utilisateur',
           role: 'vdi'
         };
+
+        logAuthEvent('Profile fetched successfully', { userId: profile.id, email: profile.email }, 'DataService.getProfile');
+        return profile;
       },
-      () => mockProfile,
+      () => {
+        logAuthDebug('Returning mock profile', {}, 'DataService.getProfile');
+        return mockProfile;
+      },
       true
     );
+
+    return result;
   },
 
   // Ensure profile exists (create if needed) - used for OAuth flows
   async ensureProfile(user: any): Promise<Profile | null> {
+    logAuthDebug('Ensuring profile exists', { userId: user?.id, email: user?.email }, 'DataService.ensureProfile');
+
     await ensureSupabaseOrMock();
     if (USE_MOCK) {
+      logAuthDebug('Using MOCK mode for ensureProfile', {}, 'DataService.ensureProfile');
       mockProfile = {
         ...mockProfile,
         id: user.id,
         email: user.email || 'oauth@example.com',
         full_name: user.user_metadata?.full_name || user.user_metadata?.name || 'Utilisateur OAuth'
       };
+      logAuthEvent('Mock profile ensured', { userId: mockProfile.id }, 'DataService.ensureProfile');
       return mockProfile;
     }
 
     const sb = getSupabase();
     try {
       // Try to get existing profile
+      logAuthDebug('Checking for existing profile', { userId: user.id }, 'DataService.ensureProfile');
       const { data: existingProfile, error: fetchError } = await sb
         .from('profiles')
         .select('*')
@@ -226,11 +308,14 @@ export const DataService = {
         .single();
 
       if (existingProfile) {
+        logAuthEvent('Existing profile found', { userId: existingProfile.id, email: existingProfile.email }, 'DataService.ensureProfile');
         return existingProfile;
       }
 
       // Profile doesn't exist, create it
       if (fetchError?.code === 'PGRST116') {
+        logAuthDebug('Profile not found, creating new profile', { userId: user.id }, 'DataService.ensureProfile');
+
         const newProfile = {
           id: user.id,
           email: user.email || '',
@@ -245,24 +330,28 @@ export const DataService = {
           .single();
 
         if (createError) {
-          console.error('Failed to create profile:', createError);
+          logAuthError('Failed to create profile in DB', createError, 'DataService.ensureProfile');
           // Return basic profile even if insert fails
           return newProfile;
         }
 
+        logAuthEvent('New profile created successfully', { userId: createdProfile.id, email: createdProfile.email }, 'DataService.ensureProfile');
         return createdProfile;
       }
 
+      logAuthError('Profile fetch error', fetchError, 'DataService.ensureProfile');
       throw fetchError;
-    } catch (e) {
-      console.error('ensureProfile error:', e);
+    } catch (e: any) {
+      logAuthError('ensureProfile error', e, 'DataService.ensureProfile');
       // Return minimal profile as fallback
-      return {
+      const fallbackProfile = {
         id: user.id,
         email: user.email || '',
         full_name: user.user_metadata?.full_name || 'Utilisateur',
         role: 'vdi'
       };
+      logAuthDebug('Returning fallback profile', { userId: fallbackProfile.id }, 'DataService.ensureProfile');
+      return fallbackProfile;
     }
   },
 

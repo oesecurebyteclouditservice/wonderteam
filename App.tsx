@@ -17,6 +17,7 @@ import { DataService } from './services/dataService';
 import { supabase } from './services/supabase';
 import { Profile, ViewState, CartItem, Product } from './types';
 import { getItemPrice } from './services/productHelpers';
+import { authLogger, logAuthEvent, logAuthDebug } from './services/authLogger';
 
 // Login is eagerly loaded (first screen seen by unauthenticated users)
 import Login from './pages/Login';
@@ -66,27 +67,37 @@ const App: React.FC = () => {
   // Auth Check - skip network calls if no session token exists
   useEffect(() => {
     const checkAuth = async () => {
+      logAuthDebug('Starting initial auth check', {}, 'App.useEffect');
+
       try {
         // Quick check: if no Supabase auth token in storage, go straight to login
         const hasSession = Object.keys(localStorage).some(k => k.startsWith('sb-'));
+        logAuthDebug('Session check', { hasSession }, 'App.useEffect');
+
         if (!hasSession && (import.meta as any).env?.VITE_SUPABASE_URL) {
+          logAuthDebug('No session found, redirecting to login', {}, 'App.useEffect');
           setCurrentView('login');
           setLoading(false);
           return;
         }
+
+        logAuthDebug('Fetching user profile (with 2s timeout)', {}, 'App.useEffect');
         // Race the profile fetch against a 2s deadline so the UI never hangs
         const profile = await Promise.race([
           DataService.getProfile(),
           new Promise<null>(resolve => setTimeout(() => resolve(null), 2000))
         ]);
+
         if (profile) {
+            logAuthEvent('User authenticated on app load', { userId: profile.id, email: profile.email }, 'App.useEffect');
             setUser(profile);
             setCurrentView('dashboard');
         } else {
+            logAuthDebug('No profile found, redirecting to login', {}, 'App.useEffect');
             setCurrentView('login');
         }
-      } catch (e) {
-        console.error("Auth check failed", e);
+      } catch (e: any) {
+        logAuthDebug('Auth check failed', { error: e.message }, 'App.useEffect');
         setCurrentView('login');
       } finally {
         setLoading(false);
@@ -98,28 +109,41 @@ const App: React.FC = () => {
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, session) => {
+          // Log all auth state changes
+          authLogger.logAuthStateChange(event, session);
+
           if (event === 'SIGNED_IN' && session?.user) {
+            logAuthEvent('SIGNED_IN event received', { userId: session.user.id, email: session.user.email }, 'App.onAuthStateChange');
             try {
               setLoading(true);
+              logAuthDebug('Ensuring profile exists for signed-in user', { userId: session.user.id }, 'App.onAuthStateChange');
+
               // Ensure profile exists (create if needed for OAuth users)
               const profile = await DataService.ensureProfile(session.user);
               if (profile) {
+                logAuthEvent('Profile ready, redirecting to dashboard', { userId: profile.id }, 'App.onAuthStateChange');
                 setUser(profile);
                 setCurrentView('dashboard');
               } else {
-                console.error("Failed to create/fetch profile for OAuth user");
+                logAuthDebug('Failed to create/fetch profile for OAuth user', { userId: session.user.id }, 'App.onAuthStateChange');
                 setCurrentView('login');
               }
-            } catch (e) {
-              console.error("Profile fetch after OAuth sign-in failed", e);
+            } catch (e: any) {
+              logAuthDebug('Profile fetch after OAuth sign-in failed', { error: e.message }, 'App.onAuthStateChange');
               setCurrentView('login');
             } finally {
               setLoading(false);
             }
           } else if (event === 'SIGNED_OUT') {
+            logAuthEvent('SIGNED_OUT event received', {}, 'App.onAuthStateChange');
+            authLogger.logLogoutFlow('Auth state changed to SIGNED_OUT', {});
             setUser(null);
             setCurrentView('login');
             setLoading(false);
+          } else if (event === 'TOKEN_REFRESHED') {
+            logAuthDebug('Token refreshed', { userId: session?.user?.id }, 'App.onAuthStateChange');
+          } else if (event === 'USER_UPDATED') {
+            logAuthDebug('User updated', { userId: session?.user?.id }, 'App.onAuthStateChange');
           }
         }
       );
@@ -128,13 +152,24 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogin = async () => {
+      authLogger.logLoginFlow('handleLogin called', {});
       setLoading(true);
       try {
+        logAuthDebug('Fetching profile after login', {}, 'App.handleLogin');
         const profile = await DataService.getProfile();
-        setUser(profile);
-        setCurrentView('dashboard');
-      } catch (e) {
-        console.error("Login failed", e);
+
+        if (profile) {
+          logAuthEvent('Login successful, setting user state', { userId: profile.id }, 'App.handleLogin');
+          setUser(profile);
+          setCurrentView('dashboard');
+          authLogger.logLoginFlow('COMPLETE: Login successful', { userId: profile.id, email: profile.email });
+        } else {
+          logAuthDebug('No profile returned after login', {}, 'App.handleLogin');
+          setCurrentView('login');
+        }
+      } catch (e: any) {
+        logAuthDebug('Login failed in handleLogin', { error: e.message }, 'App.handleLogin');
+        authLogger.logLoginFlow('ERROR: Login failed in handleLogin', { error: e.message });
         setCurrentView('login');
       } finally {
         setLoading(false);
@@ -142,19 +177,31 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
+      authLogger.logLogoutFlow('START: Logout initiated', { userId: user?.id });
+
       try {
         // Properly sign out from Supabase
         if (supabase) {
+          logAuthDebug('Calling Supabase auth.signOut', { userId: user?.id }, 'App.handleLogout');
           await supabase.auth.signOut();
+          logAuthEvent('Supabase signOut successful', {}, 'App.handleLogout');
         }
+
         // Clear local state
+        logAuthDebug('Clearing local state', {}, 'App.handleLogout');
         setUser(null);
         setCurrentView('login');
         setCartItems([]);
+
         // Clear any cached auth data
         sessionStorage.clear();
-      } catch (e) {
-        console.error("Logout error", e);
+        logAuthDebug('Session storage cleared', {}, 'App.handleLogout');
+
+        authLogger.logLogoutFlow('COMPLETE: Logout successful', {});
+      } catch (e: any) {
+        logAuthDebug('Logout error', { error: e.message }, 'App.handleLogout');
+        authLogger.logLogoutFlow('ERROR: Logout failed, forcing logout', { error: e.message });
+
         // Force logout even on error
         setUser(null);
         setCurrentView('login');
