@@ -60,9 +60,18 @@ const Login: React.FC = () => {
                   setLoading(false);
                   return;
               }
-              const { error } = await DataService.signUpWithEmail(email, password, fullName);
+              const { data, error } = await DataService.signUpWithEmail(email, password, fullName);
               if (error) throw error;
-              login();
+
+              // Vérifier si l'utilisateur a une session (email confirmé automatiquement)
+              if (data?.session) {
+                  // Email confirmé automatiquement, connexion directe
+                  login();
+              } else if (data?.user && !data?.session) {
+                  // Email nécessite confirmation
+                  setAuthError("✅ Inscription réussie ! Veuillez vérifier votre email pour confirmer votre compte, puis reconnectez-vous.");
+                  setIsRegistering(false); // Basculer vers le mode connexion
+              }
           } else {
               const { error } = await DataService.signInWithEmail(email, password);
               if (error) throw error;
@@ -71,9 +80,15 @@ const Login: React.FC = () => {
       } catch (error: any) {
           console.error(error);
           if (error.message?.includes('Invalid login credentials')) {
-            setAuthError("Email ou mot de passe incorrect.");
+            setAuthError("Email ou mot de passe incorrect. Si vous venez de vous inscrire, vérifiez votre email de confirmation.");
           } else if (error.message?.includes('Email not confirmed')) {
-            setAuthError("Veuillez confirmer votre email avant de vous connecter.");
+            setAuthError("📧 Votre email n'est pas encore confirmé. Veuillez vérifier votre boîte mail (et les spams) et cliquer sur le lien de confirmation.");
+          } else if (error.message?.includes('compte existe déjà')) {
+            setAuthError(error.message);
+            setIsRegistering(false); // Basculer vers le mode connexion
+          } else if (error.message?.includes('User already registered')) {
+            setAuthError("Un compte existe déjà avec cet email. Veuillez vous connecter.");
+            setIsRegistering(false);
           } else {
             setAuthError(error.message || "Une erreur est survenue.");
           }

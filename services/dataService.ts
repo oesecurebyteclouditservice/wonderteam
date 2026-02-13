@@ -137,6 +137,30 @@ export const DataService = {
 
     const sb = getSupabase();
 
+    // Vérifier si l'email existe déjà
+    logAuthDebug('Checking if email already exists', { email }, 'DataService.signUpWithEmail');
+    try {
+        const { data: existingUser } = await sb.auth.signInWithPassword({
+            email,
+            password: 'dummy-check-123' // Dummy password pour le test
+        });
+
+        if (existingUser?.user) {
+            logAuthDebug('Email already exists', { email }, 'DataService.signUpWithEmail');
+            return {
+                data: { user: null, session: null },
+                error: {
+                    message: 'Un compte existe déjà avec cet email. Veuillez vous connecter.',
+                    name: 'AuthApiError',
+                    status: 400
+                } as any
+            };
+        }
+    } catch (checkError: any) {
+        // Si l'erreur est "Invalid login credentials", l'email n'existe pas encore
+        logAuthDebug('Email check result', { exists: !checkError.message?.includes('Invalid login credentials') }, 'DataService.signUpWithEmail');
+    }
+
     logAuthDebug('Calling Supabase auth.signUp', { email, fullName }, 'DataService.signUpWithEmail');
     const { data, error } = await sb.auth.signUp({
         email,
@@ -144,7 +168,9 @@ export const DataService = {
         options: {
             data: {
                 full_name: fullName,
-            }
+            },
+            // Désactiver la confirmation d'email en développement
+            emailRedirectTo: `${window.location.origin}/`
         }
     });
 
@@ -154,16 +180,20 @@ export const DataService = {
         return { data, error };
     }
 
-    logAuthEvent('Sign-Up Success', { userId: data.user?.id, email }, 'DataService.signUpWithEmail');
+    logAuthEvent('Sign-Up Success', { userId: data.user?.id, email, needsConfirmation: !data.session }, 'DataService.signUpWithEmail');
 
     // Automatically create profile entry if signup successful (handled by trigger usually, but good for safety)
     if (data.user && !error) {
         logAuthDebug('Creating profile entry in DB', { userId: data.user.id }, 'DataService.signUpWithEmail');
-        const { error: profileError } = await sb.from('profiles').insert({
+
+        // Utiliser upsert au lieu de insert pour éviter les erreurs de duplicate
+        const { error: profileError } = await sb.from('profiles').upsert({
             id: data.user.id,
             email: email,
             full_name: fullName,
             role: 'vdi'
+        }, {
+            onConflict: 'id'
         });
 
         if (profileError) {
@@ -173,7 +203,13 @@ export const DataService = {
         }
     }
 
-    authLogger.logLoginFlow('COMPLETE: Email Sign-Up', { userId: data.user?.id, email });
+    authLogger.logLoginFlow('COMPLETE: Email Sign-Up', {
+        userId: data.user?.id,
+        email,
+        hasSession: !!data.session,
+        needsEmailConfirmation: !data.session && !!data.user
+    });
+
     return { data, error };
   },
 
