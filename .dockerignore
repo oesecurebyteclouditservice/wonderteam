@@ -1,0 +1,61 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist
+build
+.vite
+
+# Git
+.git
+.gitignore
+.github
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Docs et fichiers temporaires
+*.md
+!README.md
+*.log
+*.tmp
+
+# Fichiers de backup et migration
+*.backup
+*.sql
+*.csv
+backup-*.sql
+verify-*.sql
+MonStock_all.csv
+
+# Scripts de maintenance
+maintenance-*.sh
+nginx-maintenance.conf
+
+# Environment (géré par docker-compose)
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test et coverage
+coverage
+.nyc_output
+*.test.ts
+*.spec.ts
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore
